@@ -1,5 +1,5 @@
 const express = require('express');
-const { registerUser,  loginUser,logoutUser, getUserProfile, updateProfile,test,} = require('../controllers/userControllers'); // Import the user controller functions
+const { registerUser,  loginUser,logoutUser, getUserProfile, updateProfile,test, passwordResetUser, otpVerifyUser, passwordUpdateUser, resendOtpUser} = require('../controllers/userControllers'); // Import the user controller functions
 const upload = require("../config/multer-config");
 const {isLoggedIn} = require("../middlewares/checkAuth")
 
@@ -18,7 +18,20 @@ router.get('/logout', logoutUser);
 router.get('/profile',isLoggedIn,  getUserProfile);
 
 // Route to Update User Profile (Protected)
-// router.put('/profile',  updateProfile);
+router.put('/upadteprofile',  updateProfile);
 router.get('/', test);
+
+// Password Reset Request
+router.post('/reset-password', passwordResetUser);
+
+// OTP Verification
+router.post('/otp-verify', otpVerifyUser);
+
+// Update Password
+router.post('/update-password', passwordUpdateUser);
+
+// Resend OTP
+router.post('/resend-otp', resendOtpUser);
+
 
 module.exports = router;

@@ -3,6 +3,8 @@ const { User, validateUser } = require('../models/userModel'); // Import the Use
 const { catchAsyncErrors } = require("../middlewares/catchAsyncError");
 const ErrorHandler = require("../utils/ErrorHandler");
 const { generateToken } = require("../utils/SendToken");  
+const sendMail = require("../utils/nodemailer")
+const crypto = require("crypto")
 // Import the token generation function
 exports.test = (req, res, next) =>{
     res.json({ message: 'hello user' });
@@ -128,4 +130,90 @@ exports.updateProfile = catchAsyncErrors(async (req, res, next) => {
     }
 
     res.json({ message: "Profile updated successfully", user });
+});
+
+// Password Reset Request
+exports.passwordResetUser = catchAsyncErrors(async (req, res, next) => {
+    const { email } = req.body;
+    const user = await User.findOne({ email });
+
+    if (user) {
+        const otp = crypto.randomInt(100000, 999999).toString();
+
+        // Save OTP and email in session
+        req.session.otp = otp;
+        req.session.verifiedEmail = email;
+        req.session.otpExpire = Date.now() + 5 * 60 * 1000; // OTP expires in 5 minutes
+
+        await sendMail(email, `Your OTP for password reset is: ${otp}`); // Send OTP to email
+        res.status(200).json({ message: "OTP sent successfully." });
+    } else {
+        return next(new ErrorHandler("This email does not exist.", 404));
+    }
+});
+
+// OTP Verification
+exports.otpVerifyUser = catchAsyncErrors(async (req, res, next) => {
+    const { otp } = req.body;
+
+    // Check if the OTP matches and has not expired
+    if (otp !== req.session.otp || Date.now() > req.session.otpExpire) {
+        return next(new ErrorHandler("Invalid OTP. Please try again.", 400));
+    }
+
+    // If valid, proceed with password reset or whatever the next step is
+    res.status(200).json({ message: "OTP verified successfully." });
+
+    // Clear the OTP from session after verification
+    delete req.session.otp;
+    delete req.session.verifiedEmail;
+    delete req.session.otpExpire;
+});
+
+
+// Password Update
+exports.passwordUpdateUser = catchAsyncErrors(async (req, res, next) => {
+    const { newPassword } = req.body;
+
+    // Check if newPassword is provided
+    if (!newPassword || newPassword.trim() === "") {
+        return next(new ErrorHandler("New password is required.", 400));
+    }
+
+    if (req.session.verifiedEmail) {
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+        await User.findOneAndUpdate(
+            { email: req.session.verifiedEmail },
+            { password: hashedPassword }
+        );
+
+        // Clear session after successful update
+        req.session.verifiedEmail = null;
+        req.session.isOtpVerified = null;
+        req.session.otp = null;
+
+        res.status(200).json({ message: "Password reset successfully." });
+    } else {
+        return next(new ErrorHandler("Email verification required.", 400));
+    }
+});
+
+// Resend OTP
+exports.resendOtpUser = catchAsyncErrors(async (req, res, next) => {
+    const email = req.session.verifiedEmail; // Get the verified email from the session
+
+    if (!email) {
+        return next(new ErrorHandler("No email found in session.", 400));
+    }
+
+    const otp = crypto.randomInt(100000, 999999).toString();
+
+    // Store the new OTP and expiration in the session
+    req.session.otp = otp;
+    req.session.otpExpire = Date.now() + 5 * 60 * 1000; // OTP expires in 5 minutes
+
+    await sendMail(email, `Your new OTP is: ${otp}`);
+
+    res.status(200).json({ message: "OTP has been resent." });
 });
