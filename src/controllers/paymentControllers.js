@@ -1,3 +1,4 @@
+require('dotenv').config()
 const Razorpay = require('razorpay');
 const Payment = require('../models/paymentModel.js');
 const Cart = require("../models/cartModel.js");
@@ -59,10 +60,20 @@ const createOrder = catchAsyncErrors(async (req, res, next) => {
 });
 
 // Verify Payment
+// Verify Payment 
 const verifyPayment = catchAsyncErrors(async (req, res, next) => {
   const { razorpayOrderId, razorpayPaymentId, razorpaySignature } = req.body;
-  const secret = process.env.RAZORPAY_KEY_SECRET;
+  console.log(req.body);
+  
+  
+  // Check if all required fields are provided
+  if (!razorpayOrderId || !razorpayPaymentId || !razorpaySignature) {
+    return next(new ErrorHandler('Missing required payment verification data', 400));
+  }
 
+  const secret = process.env.RAZORPAY_KEY_SECRET;
+  console.log(secret);
+  
   const { validatePaymentVerification } = require('razorpay/dist/utils/razorpay-utils');
 
   const isValid = validatePaymentVerification(
@@ -93,6 +104,7 @@ const verifyPayment = catchAsyncErrors(async (req, res, next) => {
     orderId: razorpayOrderId
   });
 });
+
 
 // Cancel Payment
 const cancelPayment = catchAsyncErrors(async (req, res, next) => {
