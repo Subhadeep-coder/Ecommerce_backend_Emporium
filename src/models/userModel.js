@@ -56,7 +56,11 @@ const userSchema = new mongoose.Schema({
     isSeller: {
         type: Boolean,
         default: false,    // To indicate if the user is a seller
-    }
+    },
+    wishlist: [{ 
+        type: mongoose.Schema.Types.ObjectId, 
+        ref: 'product'  // Referencing the Product model
+    }]
 }, {
     timestamps: true      // Automatically handles createdAt and updatedAt fields
 });

@@ -28,14 +28,6 @@ const AdminSchema = new mongoose.Schema({
     minlength: 6,
     select: false // Password is not selected by default for security
   },
-  googleId: {           // For social sign-in (Google)
-    type: String,
-    default: null,
-  },
-  facebookId: {         // For social sign-in (Facebook)
-    type: String,
-    default: null,
-  },
   profilePic: {
     type: Buffer,
     default:

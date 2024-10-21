@@ -177,6 +177,11 @@ exports.passwordUpdate = catchAsyncErrors(async (req, res, next) => {
         return next(new ErrorHandler("New password is required.", 400));
     }
 
+    // Check if OTP is verified
+    if (!req.session.isOtpVerified) {
+        return next(new ErrorHandler("OTP verification required before updating password.", 400));
+    }
+
     if (req.session.verifiedEmail) {
         const hashedPassword = await bcrypt.hash(newPassword, 10);
 
