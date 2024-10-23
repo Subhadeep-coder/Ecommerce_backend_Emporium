@@ -4,14 +4,14 @@ const Schema = mongoose.Schema;
 const orderSchema = new Schema({
   userId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
+    ref: 'user',
     required: true,
   },
   products: [
     {
       productId: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'Product',
+        ref: 'product',
         required: true,
       },
       quantity: {
@@ -24,10 +24,18 @@ const orderSchema = new Schema({
     type: Number,
     required: true,
   },
-  
-},{timestamps : true});
+  status: {
+    type: String,
+    enum: ['Order Placed', 'Processing', 'Packed', 'Shipped', 'Out for Delivery', 'Delivered'],
+    default: 'Order Placed',
+  },
+  trackingNumber: {
+    type: String,
+  },
+  carrier: {
+    type: String,
+  },
+}, { timestamps: true });
 
-// Create an Order model using the schema
-const Order = mongoose.model('Order', orderSchema);
-
+const Order = mongoose.model('order', orderSchema);
 module.exports = Order;

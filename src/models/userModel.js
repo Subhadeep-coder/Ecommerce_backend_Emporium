@@ -70,7 +70,7 @@ function arrayLimit(val) {
     return val.length <= 5;  // Limit the array length to 5 tags
 }
 
-const User = mongoose.model('User', userSchema);
+const User = mongoose.model('user', userSchema);
 
 // Joi Validation Schema
 const validateUser = (user) => {
