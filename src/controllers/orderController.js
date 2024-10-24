@@ -61,54 +61,7 @@ exports.completePurchase = catchAsyncErrors(async (req, res, next) => {
   }
 });
 
-// Update order status (e.g., Processing, Shipped, etc.)
-exports.updateOrderStatus = catchAsyncErrors(async (req, res, next) => {
-  try {
-    const { orderId, status, trackingNumber, carrier } = req.body;
 
-    const order = await Order.findById(orderId);
-    if (!order) {
-      return res.status(404).send("Order not found");
-    }
-
-    // Update the status of the order
-    order.status = status;
-
-    // Optionally update the tracking number and carrier if available
-    if (trackingNumber) order.trackingNumber = trackingNumber;
-    if (carrier) order.carrier = carrier;
-
-    await order.save();
-
-    res.status(200).json({
-      message: `Order status updated to ${status}`,
-      order,
-    });
-  } catch (error) {
-    next(error);
-  }
-});
-
-// Track an order's current status
-exports.trackOrder = catchAsyncErrors(async (req, res, next) => {
-  try {
-    const { orderId } = req.params;
-
-    const order = await Order.findById(orderId);
-    if (!order) {
-      return res.status(404).send("Order not found");
-    }
-
-    res.status(200).json({
-      status: order.status,
-      trackingNumber: order.trackingNumber,
-      carrier: order.carrier,
-      orderDetails: order,
-    });
-  } catch (error) {
-    next(error);
-  }
-});
 
 // Test route for verification
 exports.test = (req, res) => {

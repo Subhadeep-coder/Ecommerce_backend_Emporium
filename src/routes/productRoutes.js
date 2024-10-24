@@ -5,7 +5,7 @@ const { isAdmin, isSeller, isLoggedIn } = require('../middlewares/checkAuth');
 const upload = require("../config/multer-config");
 
 // Product creation, update, and delete routes (only sellers can access)
-router.post('/create',upload.single("images"), isLoggedIn, isSeller, createProduct);
+router.post('/create',upload.array("images"), isLoggedIn, isSeller, createProduct);
 router.post('/update/:id', isLoggedIn, isSeller, updateProduct);  // Update product route
 router.post('/delete/:id', isLoggedIn, isSeller, deleteProduct);  // Delete product route
 router.post('/:id', isLoggedIn, getSingleProduct);  // Get single product route

@@ -6,20 +6,26 @@ const ErrorHandler = require("../utils/ErrorHandler");
 const test = catchAsyncErrors(async (req, res, next) => {
   res.json({ message: 'products' });
 });
-
 const createProduct = catchAsyncErrors(async (req, res, next) => {
   const user = await User.findById(req.user.id);
-  console.log(req.user.id)
 
   if (!user.isSeller) {
     return next(new ErrorHandler("Only sellers can create products.", 403));
   }
 
   const { title, description, price, category } = req.body;
-  console.log(req.body)
-  let { buffer, mimetype } = req.file;  // Get the first image buffer and mimetype
-  console.log(req.file);
-  
+
+  // Check if at least 2 images and at most 5 images are uploaded
+  if (!req.files || req.files.length < 2 || req.files.length > 5) {
+    return next(new ErrorHandler("You must upload between 2 and 5 images.", 400));
+  }
+
+  // Extract image buffers and mimetypes
+  const images = req.files.map(file => ({
+    data: file.buffer,
+    mimetype: file.mimetype
+  }));
+
   // Validate product fields (excluding images here)
   const { error } = productValidation.validate({
     title,
@@ -28,12 +34,12 @@ const createProduct = catchAsyncErrors(async (req, res, next) => {
     category,
     user: req.user.id,
   });
+  
   if (error) return next(new ErrorHandler(error.details[0].message, 400));
 
   const newProduct = new productModel({
     title,
-    images: buffer,  // Store the array of image buffers
-    imagesMimetype: mimetype,  // Join mimetypes as a comma-separated string
+    images,  // Store the array of image objects
     description,
     price,
     category,
@@ -43,6 +49,7 @@ const createProduct = catchAsyncErrors(async (req, res, next) => {
   await newProduct.save();
   res.status(201).json({ message: "Product created successfully", product: newProduct });
 });
+
 
 const getAllProducts = catchAsyncErrors(async (req, res, next) => {
   const { search, category, minPrice, maxPrice, sortBy } = req.query;

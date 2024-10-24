@@ -8,14 +8,10 @@ const productSchema = new mongoose.Schema({
     required: true,
     trim: true
   },
-  images: {
-    type: Buffer,  // Array of buffers to store multiple images
-    required: true
-  },
-  imagesMimetype: {
-    type: String,  // Comma-separated string of mimetypes
-    required: true
-  },
+  images: [{
+    data: Buffer,  // Array of buffers to store multiple images
+    mimetype: String // Store the mimetype for each image
+  }],
   description: {
     type: String,
     required: true
@@ -37,6 +33,7 @@ const productSchema = new mongoose.Schema({
 }, {
   timestamps: true // Automatically adds createdAt and updatedAt fields
 });
+
 
 
 // Joi validation schema
