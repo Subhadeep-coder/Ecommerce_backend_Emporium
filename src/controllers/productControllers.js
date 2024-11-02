@@ -1,11 +1,12 @@
 const { productModel, productValidation } = require("../models/productModel");
-const { User } = require("../models/userModel");
+const { User, validateUser } = require("../models/userModel");
 const { catchAsyncErrors } = require("../middlewares/catchAsyncError");
 const ErrorHandler = require("../utils/ErrorHandler");
 
 const test = catchAsyncErrors(async (req, res, next) => {
   res.json({ message: 'products' });
 });
+
 const createProduct = catchAsyncErrors(async (req, res, next) => {
   const user = await User.findById(req.user.id);
 
@@ -13,7 +14,11 @@ const createProduct = catchAsyncErrors(async (req, res, next) => {
     return next(new ErrorHandler("Only sellers can create products.", 403));
   }
 
-  const { title, description, price, category } = req.body;
+  if (!user.storeName) {
+    return next(new ErrorHandler("Store name is required for sellers.", 400));
+  }
+
+  const { title, description, price, category, inventory } = req.body;
 
   // Check if at least 2 images and at most 5 images are uploaded
   if (!req.files || req.files.length < 2 || req.files.length > 5) {
@@ -32,6 +37,7 @@ const createProduct = catchAsyncErrors(async (req, res, next) => {
     description,
     price,
     category,
+    inventory,
     user: req.user.id,
   });
   
@@ -43,16 +49,24 @@ const createProduct = catchAsyncErrors(async (req, res, next) => {
     description,
     price,
     category,
+    inventory,
     user: user._id
   });
 
+  // Add the new product to the user's activity feed
+  user.activityFeed.push({
+    type: 'new_product',
+    user: user._id,
+    product: newProduct._id
+  });
+
   await newProduct.save();
+  await user.save();
   res.status(201).json({ message: "Product created successfully", product: newProduct });
 });
 
-
 const getAllProducts = catchAsyncErrors(async (req, res, next) => {
-  const { search, category, minPrice, maxPrice, sortBy } = req.query;
+  const { search, category, minPrice, maxPrice, sortBy, page = 1, limit = 10 } = req.query;
   let query = {};
 
   // Search functionality
@@ -79,11 +93,21 @@ const getAllProducts = catchAsyncErrors(async (req, res, next) => {
   let sort = {};
   if (sortBy === 'price_asc') sort.price = 1;
   else if (sortBy === 'price_desc') sort.price = -1;
-  else if (sortBy === 'popularity') sort.views = -1;  // Assuming we have a 'views' field for popularity
 
-  const products = await productModel.find(query).sort(sort);
-  res.status(200).json({ products });
+  const products = await productModel.find(query).sort(sort)
+    .skip((page - 1) * limit) // Skipping documents for pagination
+    .limit(parseInt(limit)); // Limiting the results
+
+  const totalProducts = await productModel.countDocuments(query); // Total count for pagination
+
+  res.status(200).json({
+    totalProducts,
+    totalPages: Math.ceil(totalProducts / limit),
+    currentPage: page,
+    products
+  });
 });
+
 
 const getSingleProduct = catchAsyncErrors(async (req, res, next) => {
   const product = await productModel.findById(req.params.id);
@@ -102,64 +126,66 @@ const updateProduct = catchAsyncErrors(async (req, res, next) => {
     return next(new ErrorHandler("Unauthorized or product not found", 403));
   }
 
-  const { title, images, description, price, category } = req.body;
+  const { title, images, description, price, category, inventory } = req.body;
   if (title) product.title = title;
   if (images) product.images = images;
   if (description) product.description = description;
   if (price) product.price = price;
   if (category) product.category = category;
+  if (inventory) product.inventory = inventory;
 
   await product.save();
   res.status(200).json({ message: "Product updated successfully", product });
 });
 
+// Delete Product
 const deleteProduct = catchAsyncErrors(async (req, res, next) => {
   const product = await productModel.findById(req.params.id);
   if (!product || product.user.toString() !== req.user.id) {
     return next(new ErrorHandler("Unauthorized or product not found", 403));
   }
-  
-  await productModel.findByIdAndDelete(req.params.id);
-  res.status(200).json({ message: "Product deleted successfully", product });
+
+  await product.remove();
+  res.status(200).json({ message: "Product deleted successfully" });
 });
 
 // Add a product to the wishlist
 const addToWishlist = catchAsyncErrors(async (req, res, next) => {
-  const userId = req.user.id // Assuming you have the user ID from authentication (e.g., JWT)
-  const { productId } = req.body // Get the product ID from the request body
+  const userId = req.user.id;
+  const { productId } = req.body;
 
-  // Find the product by ID to ensure it exists
-  const product = await productModel.findById(productId)
+  const product = await productModel.findById(productId);
   if (!product) {
     return next(new ErrorHandler("Product not found", 404));
   }
 
-  // Find the user and check their wishlist
-  const user = await User.findById(userId)
+  const user = await User.findById(userId);
 
-  // Check if the product is already in the wishlist
   if (user.wishlist.includes(productId)) {
     return next(new ErrorHandler("Product is already in the wishlist", 400));
   }
 
-  // Check if the wishlist has reached the limit of 10 products
   if (user.wishlist.length >= 10) {
     return next(new ErrorHandler("You can only add up to 10 products to your wishlist", 400));
   }
 
-  // Add the product to the wishlist
-  user.wishlist.push(productId)
-  await user.save() // Save the updated user document
+  user.wishlist.push(productId);
+  await user.save();
 
-  res.status(200).json({ message: "Product added to wishlist successfully" })
+  user.activityFeed.push({
+    type: 'like',
+    user: user._id,
+    product: productId
+  });
+
+  await user.save();
+  res.status(200).json({ message: "Product added to wishlist successfully" });
 });
 
-// Get all products in the user's wishlist
 const getWishlist = catchAsyncErrors(async (req, res, next) => {
-  const userId = req.user.id // Assuming you have the user ID from authentication (e.g., JWT)
+  const userId = req.user.id;
 
-  // Find the user and populate the wishlist with product details
-  const user = await User.findById(userId).populate("wishlist")
+  const user = await User.findById(userId).populate("wishlist");
 
   if (!user) {
     return next(new ErrorHandler("User not found", 404));
@@ -167,63 +193,170 @@ const getWishlist = catchAsyncErrors(async (req, res, next) => {
 
   res.status(200).json({
     message: "Wishlist retrieved successfully",
-    wishlist: user.wishlist, // Return the wishlist products
-  })
+    wishlist: user.wishlist,
+  });
 });
 
-// Remove a product from the wishlist
 const removeFromWishlist = catchAsyncErrors(async (req, res, next) => {
-  const userId = req.user.id // Assuming you have the user ID from authentication (e.g., JWT)
-  const { productId } = req.params // Get the product ID from the request parameters
+  const userId = req.user.id;
+  const { productId } = req.params;
 
-  // Find the user
-  const user = await User.findById(userId)
+  const user = await User.findById(userId);
 
   if (!user) {
     return next(new ErrorHandler("User not found", 404));
   }
 
-  // Check if the product is in the user's wishlist
-  const index = user.wishlist.indexOf(productId)
+  const index = user.wishlist.indexOf(productId);
   if (index === -1) {
     return next(new ErrorHandler("Product not found in wishlist", 400));
   }
 
-  // Remove the product from the wishlist
-  user.wishlist.splice(index, 1)
-  await user.save() // Save the updated user document
+  user.wishlist.splice(index, 1);
+  await user.save();
 
-  res.status(200).json({ message: "Product removed from wishlist successfully" })
+  user.activityFeed.push({
+    type: 'remove_wishlist',
+    user: user._id,
+    product: productId
+  });
+
+  await user.save();
+  res.status(200).json({ message: "Product removed from wishlist successfully" });
+});
+const likeProduct = catchAsyncErrors(async (req, res, next) => {
+  const productId = req.params.id;
+  const userId = req.user.id;
+
+  const product = await productModel.findById(productId).populate('user'); // Ensure user is populated
+  if (!product) {
+    return next(new ErrorHandler("Product not found", 404));
+  }
+
+  // Check if the user exists before accessing activityFeed
+  if (!product.user) {
+    return next(new ErrorHandler("User associated with this product not found", 404));
+  }
+
+  if (product.likes.includes(userId)) {
+    return next(new ErrorHandler("You have already liked this product", 400));
+  }
+
+  product.likes.push(userId);
+  await product.save();
+
+  // Ensure user.activityFeed exists
+  if (!product.user.activityFeed) {
+    product.user.activityFeed = []; // Initialize if undefined
+  }
+
+  product.user.activityFeed.push({
+    type: 'like',
+    user: userId,
+    product: productId
+  });
+
+  // Corrected the save method call to use the product model directly
+  await User.findByIdAndUpdate(product.user._id, { $set: { "activityFeed": product.user.activityFeed } });
+  res.status(200).json({ message: "Product liked successfully" });
+});
+
+
+
+
+const commentOnProduct = catchAsyncErrors(async (req, res, next) => {
+  const productId = req.params.id;
+  const userId = req.user.id;
+  const { comment } = req.body;
+
+  const product = await productModel.findById(productId).populate('user');
+  if (!product) {
+    return next(new ErrorHandler("Product not found", 404));
+  }
+
+  // Check if the user exists before accessing activityFeed
+  if (!product.user) {
+    return next(new ErrorHandler("User associated with this product not found", 404));
+  }
+
+  // Ensure user.activityFeed exists
+  if (!product.user.activityFeed) {
+    product.user.activityFeed = []; // Initialize if undefined
+  }
+
+  product.comments.push({ user: userId, comment });
+  await product.save();
+
+  const user = await User.findById(userId);
+  if (!user) {
+    return next(new ErrorHandler("User not found", 404));
+  }
+
+  if (!user.activityFeed) {
+    user.activityFeed = []; // Initialize if undefined
+  }
+
+  user.activityFeed.push({
+    type: 'comment',
+    user: userId,
+    product: productId
+  });
+
+  await user.save();
+  res.status(200).json({ message: "Comment added successfully" });
+});
+
+const shareProduct = catchAsyncErrors(async (req, res, next) => {
+  const productId = req.params.id;
+  const userId = req.user.id;
+  const { sharedTo } = req.body;
+
+  const product = await productModel.findById(productId);
+  if (!product) {
+    return next(new ErrorHandler("Product not found", 404));
+  }
+
+  product.shares.push({ user: userId, sharedTo });
+  await product.save();
+
+  // Ensure user.activityFeed exists
+  if (!product.user.activityFeed) {
+    product.user.activityFeed = []; // Initialize if undefined
+  }
+
+  product.user.activityFeed.push({
+    type: 'share',
+    user: userId,
+    product: productId
+  });
+
+  await product.user.save();
+  res.status(200).json({ message: "Product shared successfully" });
 });
 
 const getSellerProducts = catchAsyncErrors(async (req, res, next) => {
-  // Find the seller in the database
   const seller = await User.findById(req.user.id);
-  
-  // Check if the seller exists and is indeed a seller
+
   if (!seller) {
     return next(new ErrorHandler("Seller not found", 404));
   }
 
-  // Find products associated with the seller
   const products = await productModel.find({ user: req.user.id });
-
-  // Return the list of products created by the seller
-  res.status(200).json({
-    products: products,
-    message: "Products retrieved successfully",
-  });
+  res.status(200).json({ products });
 });
 
 module.exports = {
+  test,
   createProduct,
   getAllProducts,
+  getSingleProduct,
   updateProduct,
   deleteProduct,
-  getSingleProduct,
   addToWishlist,
   getWishlist,
   removeFromWishlist,
+  likeProduct,
+  commentOnProduct,
+  shareProduct,
   getSellerProducts,
-  test
-}
+};

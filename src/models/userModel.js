@@ -40,8 +40,7 @@ const userSchema = new mongoose.Schema({
     },
     profilePic: {
         type: Buffer,
-        default:
-          "https://images.unsplash.com/photo-1515041219749-89347f83291a?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8Mnx8Y2FydG9vbnxlbnwwfHwwfHx8MA%3D%3D",
+        default: null,
         trim: true,
     },
     imageMimeType: {
@@ -57,9 +56,37 @@ const userSchema = new mongoose.Schema({
         type: Boolean,
         default: false,    // To indicate if the user is a seller
     },
+    storeName: {
+        type: String,
+        trim: true,
+        default: null,
+        required: function() { return this.isSeller; }  // Store name required if user is a seller
+    },
+    storeDescription: {
+        type: String,
+        maxlength: 1000,
+        trim: true,
+        default: null,
+    },
     wishlist: [{ 
         type: mongoose.Schema.Types.ObjectId, 
         ref: 'product'  // Referencing the Product model
+    }],
+    followers: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'user'  // Users who follow this user
+    }],
+    following: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'user'  // Users this user is following (sellers, influencers, etc.)
+    }],
+    activityFeed: [{
+        type: {
+            type: String, enum: ['new_product', 'sale', 'comment', 'like', 'share', 'follow'] // Types of activities
+        },
+        user: { type: mongoose.Schema.Types.ObjectId, ref: 'user' }, // The user who initiated the activity
+        product: { type: mongoose.Schema.Types.ObjectId, ref: 'product' }, // The product related to the activity
+        createdAt: { type: Date, default: Date.now }
     }]
 }, {
     timestamps: true      // Automatically handles createdAt and updatedAt fields
@@ -69,8 +96,6 @@ const userSchema = new mongoose.Schema({
 function arrayLimit(val) {
     return val.length <= 5;  // Limit the array length to 5 tags
 }
-
-const User = mongoose.model('user', userSchema);
 
 // Joi Validation Schema
 const validateUser = (user) => {
@@ -84,11 +109,15 @@ const validateUser = (user) => {
         profilePic: Joi.string().optional().allow(null, ''),
         bio: Joi.string().max(500).optional(),
         isSeller: Joi.boolean().optional(),
+        storeName: Joi.string().optional().when('isSeller', { is: true, then: Joi.required() }), // Store name required if user is a seller
+        storeDescription: Joi.string().max(1000).optional(),
         interests: Joi.array().items(Joi.string().max(30)).max(5).optional(),  // Limit to 5 items
     });
 
     return schema.validate(user);
 };
+
+const User = mongoose.model('user', userSchema);
 
 module.exports = {
     User,

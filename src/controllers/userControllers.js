@@ -1,5 +1,6 @@
 const bcrypt = require('bcrypt');
 const { User, validateUser } = require('../models/userModel'); // Import the User model and validation
+const {productModel, productValidation } = require('../models/productModel'); // Import the Product model and validation
 const { catchAsyncErrors } = require("../middlewares/catchAsyncError");
 const ErrorHandler = require("../utils/ErrorHandler");
 const { generateToken } = require("../utils/SendToken");  
@@ -12,7 +13,7 @@ exports.test = (req, res, next) =>{
 }
 // User Registration
 exports.registerUser = catchAsyncErrors(async (req, res, next) => {
-    const { name, username, email, password, bio,interests, isSeller } = req.body;
+    const { name, username, email, password, bio,interests, isSeller, storeName, storeDescription } = req.body;
     let { buffer, mimetype } = req.file || {};
 
     // Validate request body with Joi
@@ -42,6 +43,8 @@ exports.registerUser = catchAsyncErrors(async (req, res, next) => {
         imageMimeType: mimetype,
         interests,
         isSeller: isSeller !== undefined ? isSeller : false,
+        storeName: isSeller ? storeName : null,
+        storeDescription: isSeller ? storeDescription : null, // Store description added
     });
 
     await newUser.save();
@@ -110,7 +113,7 @@ exports.getUserProfile = catchAsyncErrors(async (req, res, next) => {
 
 // Update User Profile
 exports.updateProfile = catchAsyncErrors(async (req, res, next) => {
-    const { bio, name, isSeller, interests } = req.body;
+    const { bio, name, isSeller, interests, storeName, storeDescription } = req.body; // Store description added
 
     // Validate request body with Joi
     const { error } = validateUser(req.body);
@@ -121,7 +124,7 @@ exports.updateProfile = catchAsyncErrors(async (req, res, next) => {
     // Update user details
     const user = await User.findByIdAndUpdate(
         req.user.id,  // Get user ID from decoded token
-        { bio, name, isSeller,interests },
+        { bio, name, isSeller,interests, storeName, storeDescription }, // Store description added
         { new: true, runValidators: true }
     ).select('-password');
 
@@ -216,4 +219,120 @@ exports.resendOtpUser = catchAsyncErrors(async (req, res, next) => {
     await sendMail(email, `Your new OTP is: ${otp}`);
 
     res.status(200).json({ message: "OTP has been resent." });
+});
+
+// Follow Seller
+exports.followSeller = catchAsyncErrors(async (req, res, next) => {
+    const { sellerId } = req.body;
+    console.log(sellerId);
+    
+    const userId = req.user.id;
+
+    // Check if the seller exists
+    const seller = await User.findById(sellerId);
+    if (!seller) {
+        return next(new ErrorHandler("Seller not found.", 404));
+    }
+
+    // Check if the user is already following the seller
+    if (seller.followers.includes(userId)) {
+        return next(new ErrorHandler("You are already following this seller.", 400));
+    }
+
+    // Add the user to the seller's followers
+    await User.findByIdAndUpdate(sellerId, { $addToSet: { followers: userId } }, { new: true });
+
+    // Add the seller to the user's following
+    await User.findByIdAndUpdate(userId, { $addToSet: { following: sellerId } }, { new: true });
+
+    res.status(200).json({ message: "Seller followed successfully." });
+});
+
+// Unfollow Seller
+exports.unfollowSeller = catchAsyncErrors(async (req, res, next) => {
+    const { sellerId } = req.body;
+    const userId = req.user.id;
+
+    // Check if the seller exists
+    const seller = await User.findById(sellerId);
+    if (!seller) {
+        return next(new ErrorHandler("Seller not found.", 404));
+    }
+
+    // Check if the user is not following the seller
+    if (!seller.followers.includes(userId)) {
+        return next(new ErrorHandler("You are not following this seller.", 400));
+    }
+
+    // Remove the user from the seller's followers
+    await User.findByIdAndUpdate(sellerId, { $pull: { followers: userId } }, { new: true });
+
+    // Remove the seller from the user's following
+    await User.findByIdAndUpdate(userId, { $pull: { following: sellerId } }, { new: true });
+
+    res.status(200).json({ message: "Seller unfollowed successfully." });
+});
+
+// Get Seller Profile
+exports.getSellerProfile = catchAsyncErrors(async (req, res, next) => {
+    const { sellerId } = req.params;
+
+    // Check if the seller exists
+    const seller = await User.findById(sellerId).select('-password');
+    if (!seller) {
+        return next(new ErrorHandler("Seller not found.", 404));
+    }
+
+    // Get the seller's products
+    const products = await productModel.find({ user: sellerId });
+
+    res.json({ seller, products });
+});
+
+// Get Seller Feed
+exports.getSellerFeed = catchAsyncErrors(async (req, res, next) => {
+    const { sellerId } = req.params;
+
+    // Check if the seller exists
+    const seller = await User.findById(sellerId);
+    if (!seller) {
+        return next(new ErrorHandler("Seller not found.", 404));
+    }
+
+    // Get the seller's products
+    const products = await productModel.find({ user: sellerId });
+
+    res.json({ products });
+});
+
+// Activity Feed
+exports.getActivityFeed = catchAsyncErrors(async (req, res, next) => {
+    const userId = req.user.id;
+
+    // Find the user
+    const user = await User.findById(userId);
+    if (!user) {
+        return next(new ErrorHandler("User not found.", 404));
+    }
+
+    // Get the user's following
+    const following = user.following;
+
+    // Initialize an empty array to store the activity feed
+    let activityFeed = [];
+
+    // Loop through each user the current user is following
+    for (const followId of following) {
+        // Find the user's activity feed
+        const followUser = await User.findById(followId).populate('activityFeed');
+        if (followUser) {
+            // Add the follow user's activity feed to the current user's activity feed
+            activityFeed = activityFeed.concat(followUser.activityFeed);
+        }
+    }
+
+    // Sort the activity feed by createdAt in descending order (newest first)
+    activityFeed.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+    res.status(200).json({ activityFeed });
 });

@@ -1,7 +1,6 @@
 const mongoose = require('mongoose');
 const Joi = require('joi');
 
-
 const productSchema = new mongoose.Schema({
   title: {
     type: String,
@@ -25,16 +24,34 @@ const productSchema = new mongoose.Schema({
     required: true, // Making category a required field
     trim: true
   },
+  inventory: {
+    type: Number,
+    required: true,
+    min: 0, // Ensure stock can't be negative
+    default: 0
+  },
   user: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'user', // Reference to the user model
     required: true
-  }
+  },
+  likes: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'user'  // Users who liked the product
+  }],
+  comments: [{
+    user: { type: mongoose.Schema.Types.ObjectId, ref: 'user' },  // User who commented
+    comment: { type: String, required: true },
+    createdAt: { type: Date, default: Date.now }
+  }],
+  shares: [{
+    user: { type: mongoose.Schema.Types.ObjectId, ref: 'user' },  // User who shared the product
+    sharedTo: { type: String, required: true }, // Can be 'profile', 'external', etc.
+    createdAt: { type: Date, default: Date.now }
+  }]
 }, {
   timestamps: true // Automatically adds createdAt and updatedAt fields
 });
-
-
 
 // Joi validation schema
 const productValidation = Joi.object({
@@ -45,11 +62,7 @@ const productValidation = Joi.object({
       'string.empty': 'Title is required',
       'any.required': 'Title is a required field',
     }),
-    
-
   
-
-
   description: Joi.string()
     .required()
     .messages({
@@ -74,6 +87,16 @@ const productValidation = Joi.object({
       'any.required': 'Category is a required field',
     }),
 
+  inventory: Joi.number()
+    .integer()
+    .min(0)
+    .required()
+    .messages({
+      'number.base': 'Inventory must be a number',
+      'number.min': 'Inventory cannot be negative',
+      'any.required': 'Inventory is a required field',
+    }),
+
   user: Joi.string()
     .required()
     .messages({
@@ -82,12 +105,8 @@ const productValidation = Joi.object({
     })
 });
 
-// Exporting the validation schema
-
-
-
 const productModel = mongoose.model('product', productSchema);
-module.exports ={
+module.exports = {
   productModel,
   productValidation
-}
+};
