@@ -304,7 +304,8 @@ exports.getSellerFeed = catchAsyncErrors(async (req, res, next) => {
 
     res.json({ products });
 });
-// Activity Feed Route
+
+// Activity Feed
 exports.getActivityFeed = catchAsyncErrors(async (req, res, next) => {
     const userId = req.user.id;
 
@@ -322,16 +323,8 @@ exports.getActivityFeed = catchAsyncErrors(async (req, res, next) => {
 
     // Loop through each user the current user is following
     for (const followId of following) {
-        // Find the followed user's activity feed and populate with proper references
-        const followUser = await User.findById(followId)
-            .populate({
-                path: 'activityFeed', // Assuming 'activityFeed' is the field where activities are stored
-                populate: {
-                    path: 'product', // Populating the 'product' reference inside activityFeed if applicable
-                    model: 'Product', // Replace 'Product' with whatever model you're referring to
-                },
-            });
-
+        // Find the user's activity feed
+        const followUser = await User.findById(followId).populate('activityFeed');
         if (followUser) {
             // Add the follow user's activity feed to the current user's activity feed
             activityFeed = activityFeed.concat(followUser.activityFeed);
@@ -343,4 +336,3 @@ exports.getActivityFeed = catchAsyncErrors(async (req, res, next) => {
 
     res.status(200).json({ activityFeed });
 });
-
