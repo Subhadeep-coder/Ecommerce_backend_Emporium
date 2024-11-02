@@ -80,6 +80,20 @@ const userSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'user'  // Users this user is following (sellers, influencers, etc.)
     }],
+    likes: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'product'  // Products liked by the user
+    }],
+    comments: [{
+        product: { type: mongoose.Schema.Types.ObjectId, ref: 'product' },  // Product commented on
+        comment: { type: String, required: true },
+        createdAt: { type: Date, default: Date.now }
+    }],
+    shares: [{
+        product: { type: mongoose.Schema.Types.ObjectId, ref: 'product' },  // Products shared by the user
+        sharedTo: { type: String, required: true }, // Can be 'profile', 'external', etc.
+        createdAt: { type: Date, default: Date.now }
+    }],
     activityFeed: [{
         type: {
             type: String, enum: ['new_product', 'sale', 'comment', 'like', 'share', 'follow'] // Types of activities

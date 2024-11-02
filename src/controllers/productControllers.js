@@ -224,17 +224,21 @@ const removeFromWishlist = catchAsyncErrors(async (req, res, next) => {
   await user.save();
   res.status(200).json({ message: "Product removed from wishlist successfully" });
 });
+
+
+
 const likeProduct = catchAsyncErrors(async (req, res, next) => {
   const productId = req.params.id;
   const userId = req.user.id;
 
-  const product = await productModel.findById(productId).populate('user'); // Ensure user is populated
+  const product = await productModel.findById(productId);
   if (!product) {
     return next(new ErrorHandler("Product not found", 404));
   }
 
-  // Check if the user exists before accessing activityFeed
-  if (!product.user) {
+  // Check if the product has a valid user associated with it
+  const productOwner = await User.findById(product.user);
+  if (!productOwner) {
     return next(new ErrorHandler("User associated with this product not found", 404));
   }
 
@@ -245,22 +249,15 @@ const likeProduct = catchAsyncErrors(async (req, res, next) => {
   product.likes.push(userId);
   await product.save();
 
-  // Ensure user.activityFeed exists
-  if (!product.user.activityFeed) {
-    product.user.activityFeed = []; // Initialize if undefined
-  }
-
-  product.user.activityFeed.push({
+  productOwner.activityFeed.push({
     type: 'like',
     user: userId,
     product: productId
   });
 
-  // Corrected the save method call to use the product model directly
-  await User.findByIdAndUpdate(product.user._id, { $set: { "activityFeed": product.user.activityFeed } });
+  await productOwner.save();
   res.status(200).json({ message: "Product liked successfully" });
 });
-
 
 
 
@@ -269,40 +266,27 @@ const commentOnProduct = catchAsyncErrors(async (req, res, next) => {
   const userId = req.user.id;
   const { comment } = req.body;
 
-  const product = await productModel.findById(productId).populate('user');
+  const product = await productModel.findById(productId);
   if (!product) {
     return next(new ErrorHandler("Product not found", 404));
   }
 
-  // Check if the user exists before accessing activityFeed
-  if (!product.user) {
+  // Check if the product has a valid user associated with it
+  const productOwner = await User.findById(product.user);
+  if (!productOwner) {
     return next(new ErrorHandler("User associated with this product not found", 404));
-  }
-
-  // Ensure user.activityFeed exists
-  if (!product.user.activityFeed) {
-    product.user.activityFeed = []; // Initialize if undefined
   }
 
   product.comments.push({ user: userId, comment });
   await product.save();
 
-  const user = await User.findById(userId);
-  if (!user) {
-    return next(new ErrorHandler("User not found", 404));
-  }
-
-  if (!user.activityFeed) {
-    user.activityFeed = []; // Initialize if undefined
-  }
-
-  user.activityFeed.push({
+  productOwner.activityFeed.push({
     type: 'comment',
     user: userId,
     product: productId
   });
 
-  await user.save();
+  await productOwner.save();
   res.status(200).json({ message: "Comment added successfully" });
 });
 
@@ -311,29 +295,34 @@ const shareProduct = catchAsyncErrors(async (req, res, next) => {
   const userId = req.user.id;
   const { sharedTo } = req.body;
 
-  const product = await productModel.findById(productId);
+  // Find the product by ID
+  const product = await productModel.findById(productId).populate('user'); // Populate the user field
   if (!product) {
     return next(new ErrorHandler("Product not found", 404));
   }
 
+  // Push the share info to the product shares array
   product.shares.push({ user: userId, sharedTo });
   await product.save();
 
-  // Ensure user.activityFeed exists
+  // Ensure product.user is populated and activityFeed exists
   if (!product.user.activityFeed) {
     product.user.activityFeed = []; // Initialize if undefined
   }
 
+  // Add the share activity to the user's activity feed
   product.user.activityFeed.push({
     type: 'share',
     user: userId,
     product: productId
   });
 
+  // Save the updated user
   await product.user.save();
+
+  // Send success response
   res.status(200).json({ message: "Product shared successfully" });
 });
-
 const getSellerProducts = catchAsyncErrors(async (req, res, next) => {
   const seller = await User.findById(req.user.id);
 
