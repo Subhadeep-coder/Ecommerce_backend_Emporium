@@ -72,8 +72,6 @@ const isAdminOrSeller = async (req, res, next) => {
     }
 };
 
-// Route definition
-router.get('/seller-products', isLoggedIn, isAdminOrSeller, getSellerProducts);
 
 module.exports = {
     isLoggedIn,
