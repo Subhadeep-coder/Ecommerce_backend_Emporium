@@ -333,6 +333,35 @@ const getSellerProducts = catchAsyncErrors(async (req, res, next) => {
   const products = await productModel.find({ user: req.user.id });
   res.status(200).json({ products });
 });
+const getProductsByStore = catchAsyncErrors(async (req, res, next) => {
+  const { storeName } = req.query;
+  console.log(storeName);
+  
+
+  // Ensure storeName is provided
+  if (!storeName) {
+    return next(new ErrorHandler("Store name is required to fetch products", 400));
+  }
+
+  // Find the seller by store name
+  const seller = await User.findOne({ storeName });
+
+  // If no seller is found, return an error
+  if (!seller) {
+    return next(new ErrorHandler("Seller not found with the given store name", 404));
+  }
+
+  // Fetch products created by the seller
+  const products = await productModel.find({ user: seller._id });
+
+  // If no products are found, return an empty array
+  if (!products.length) {
+    return res.status(200).json({ message: "No products found for this store", products: [] });
+  }
+
+  // Return the list of products
+  res.status(200).json({ message: "Products fetched successfully", products });
+});
 
 module.exports = {
   test,
@@ -348,4 +377,6 @@ module.exports = {
   commentOnProduct,
   shareProduct,
   getSellerProducts,
+  getProductsByStore
+  
 };
