@@ -1,12 +1,13 @@
 const express = require('express');
-const { registerUser, loginUser, logoutUser, getUserProfile, updateProfile, test, passwordResetUser, otpVerifyUser, passwordUpdateUser, resendOtpUser, followSeller, unfollowSeller, getSellerProfile, getSellerFeed, getActivityFeed } = require('../controllers/userControllers'); // Import the user controller functions
+const {  loginUser, logoutUser, getUserProfile, updateProfile, test, passwordResetUser, otpVerifyUser, passwordUpdateUser, resendOtpUser, followSeller, unfollowSeller, getSellerProfile, getSellerFeed, getActivityFeed, registerUserStepOne, registerUserStepTwo } = require('../controllers/userControllers'); // Import the user controller functions
 const upload = require("../config/multer-config");
 const { isLoggedIn } = require("../middlewares/checkAuth")
 
 const router = express.Router();
 
 // Route for User Registration
-router.post('/register', upload.single("profilePic"), registerUser);
+router.post('/register', upload.single("profilePic"), registerUserStepOne);
+router.post('/register-verify',registerUserStepTwo);
 
 // Route for User Login
 router.post('/login', loginUser);
@@ -18,7 +19,7 @@ router.get('/logout', logoutUser);
 router.get('/profile', isLoggedIn, getUserProfile);
 
 // Route to Update User Profile (Protected)
-router.put('/update-profile', updateProfile);
+router.put('/update-profile',upload.single("profilePic"), updateProfile);
 
 // Test Route
 router.get('/', test);

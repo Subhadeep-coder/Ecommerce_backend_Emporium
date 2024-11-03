@@ -11,55 +11,96 @@ exports.test = (req, res, next) =>{
     res.json({ message: 'hello user' });
 
 }
-// User Registration
-exports.registerUser = catchAsyncErrors(async (req, res, next) => {
-    const { name, username, email, password, bio,interests, isSeller, storeName, storeDescription } = req.body;
-    let { buffer, mimetype } = req.file || {};
+exports.registerUserStepOne = catchAsyncErrors(async (req, res, next) => {
+    const { name, username, email, password, bio, interests, isSeller, storeName, storeDescription } = req.body;
+    const { buffer, mimetype } = req.file || {};
 
-    // Validate request body with Joi
+    // Validate user data
     const { error } = validateUser(req.body);
     if (error) {
         return next(new ErrorHandler(error.details[0].message, 400));
     }
 
-    // Check if the email already exists
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
+    // Check if email already exists
+    const existingEmailUser = await User.findOne({ email });
+    if (existingEmailUser) {
         return next(new ErrorHandler("User already registered with this email.", 400));
     }
 
-    // Hash the password
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
+    // Check if username already exists
+    const existingUsernameUser = await User.findOne({ username });
+    if (existingUsernameUser) {
+        return next(new ErrorHandler("Username is already taken.", 400));
+    }
 
-    // Create new user
+    // Generate OTP
+    const otp = Math.floor(100000 + Math.random() * 900000);
+    req.session.userDetails = { name, username, email, password, bio, interests, isSeller, storeName, storeDescription, buffer, mimetype };
+    req.session.otp = otp;
+    req.session.otpExpire = Date.now() + 10 * 60 * 1000; // 10 minutes expiry
+
+    await sendMail(email, otp);
+    res.status(200).json({ message: "OTP sent to your email." });
+});
+
+// // Register User Step 2 (for OTP verification)
+exports.registerUserStepTwo = catchAsyncErrors(async (req, res, next) => {
+    const { otp } = req.body;
+
+    if (!otp) {
+        return next(new ErrorHandler("Please provide an OTP.", 400));
+    }
+
+    const { otp: sessionOtp, otpExpire } = req.session;
+
+    if (!sessionOtp) {
+        return next(new ErrorHandler("No OTP found in session.", 400));
+    }
+
+    if (Date.now() > otpExpire) {
+        console.log("OTP expired.");
+        return next(new ErrorHandler("OTP has expired.", 400));
+    }
+
+    const trimmedSessionOtp = String(sessionOtp).trim();
+    const trimmedInputOtp = String(otp).trim();
+
+    if (trimmedInputOtp !== trimmedSessionOtp) {
+        return next(new ErrorHandler("Invalid OTP.", 400));
+    }
+    // Proceed with user registration if OTP is valid
+    const userDetails = req.session.userDetails;
+    const hashedPassword = await bcrypt.hash(userDetails.password, 10);
+    
     const newUser = new User({
-        name,
-        username,
-        email,
+        name: userDetails.name,
+        username: userDetails.username,
+        email: userDetails.email,
         password: hashedPassword,
-        bio: bio || null,
-        profilePic: buffer,
-        imageMimeType: mimetype,
-        interests,
-        isSeller: isSeller !== undefined ? isSeller : false,
-        storeName: isSeller ? storeName : null,
-        storeDescription: isSeller ? storeDescription : null, // Store description added
+        bio: userDetails.bio || null,
+        profilePic: userDetails.buffer || null,
+        imageMimeType: userDetails.mimetype || null,
+        interests: userDetails.interests,
+        isSeller: userDetails.isSeller || false,
+        storeName: userDetails.isSeller ? userDetails.storeName : null,
+        storeDescription: userDetails.isSeller ? userDetails.storeDescription : null,
     });
 
     await newUser.save();
 
-    // Create JWT Token for the newly registered user
-    const token = generateToken(newUser._id, false, newUser.isSeller, newUser._id); // Set isAdmin to false for users
+    // Generate JWT token
+    const token = generateToken(newUser._id, false, newUser.isSeller, newUser._id);
+    res.cookie('token', token, { httpOnly: true, expires: new Date(Date.now() + 60 * 60 * 1000) });
 
-    // Set the token in a cookie (optional)
-    res.cookie('token', token, {
-        httpOnly: true,
-        expires: new Date(Date.now() + 60 * 60 * 1000), // Cookie expires in 1 hour
-    });
+    // Clear session data
+    req.session.otp = null;
+    req.session.userDetails = null;
+    req.session.otpExpire = null;
 
-    res.status(201).json({ token, message: "User registered successfully.", newUser});
+    res.status(201).json({ token, message: "User registered successfully.", newUser });
 });
+
+
 
 // User Login
 exports.loginUser = catchAsyncErrors(async (req, res, next) => {
@@ -110,30 +151,54 @@ exports.getUserProfile = catchAsyncErrors(async (req, res, next) => {
 
     res.json(user);
 });
-
-// Update User Profile
+// Update User and Seller Profile with image update
 exports.updateProfile = catchAsyncErrors(async (req, res, next) => {
-    const { bio, name, isSeller, interests, storeName, storeDescription } = req.body; // Store description added
+    const { bio, name, isSeller, interests, storeName, storeDescription } = req.body; // Additional fields for seller included
+    const { buffer, mimetype } = req.file || {}; // File handling (profile picture)
 
-    // Validate request body with Joi
-    const { error } = validateUser(req.body);
-    if (error) {
-        return next(new ErrorHandler(error.details[0].message, 400));
+    // Construct an object with only the fields that need to be updated
+    const updateFields = {
+        ...(bio && { bio }),
+        ...(name && { name }),
+        ...(isSeller !== undefined && { isSeller }),
+        ...(interests && { interests }),
+        ...(isSeller && storeName && { storeName }),
+        ...(isSeller && storeDescription && { storeDescription }),
+    };
+
+    // Check if a new profile picture is uploaded and add it to the updateFields object
+    if (buffer && mimetype) {
+        updateFields.profilePic = buffer;
+        updateFields.imageMimeType = mimetype;
     }
 
-    // Update user details
+    // Update the user details based on the provided user ID (from token or session)
     const user = await User.findByIdAndUpdate(
-        req.user.id,  // Get user ID from decoded token
-        { bio, name, isSeller,interests, storeName, storeDescription }, // Store description added
-        { new: true, runValidators: true }
-    ).select('-password');
+        req.user.id,   // Assuming you have req.user populated with the logged-in user's ID
+        updateFields,  // Only update the fields that have changed
+        { new: true, runValidators: true } // Return the updated document and run validation
+    ).select('-password'); // Exclude password from the returned data
 
+    // If user not found
     if (!user) {
         return next(new ErrorHandler("User not found.", 404));
     }
 
-    res.json({ message: "Profile updated successfully", user });
+    // Check if the user is a seller
+    if (user.isSeller) {
+        const sellerDetails = {
+            storeName: user.storeName,
+            storeDescription: user.storeDescription,
+            // Add any other seller-specific details you want to return
+        };
+        res.json({ message: "Seller profile updated successfully", user, sellerDetails });
+    } else {
+        res.json({ message: "User profile updated successfully", user });
+    }
 });
+
+
+
 
 // Password Reset Request
 exports.passwordResetUser = catchAsyncErrors(async (req, res, next) => {
