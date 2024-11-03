@@ -6,7 +6,11 @@ const { isLoggedIn } = require("../middlewares/checkAuth")
 const router = express.Router();
 
 // Route for User Registration
-router.post('/register', upload.single("profilePic"), registerUserStepOne);
+router.post('/register', upload.fields([
+    { name: "profilePic", maxCount: 1 },  // Upload single profile picture
+    { name: "storeImage", maxCount: 1 }    // Upload single store image
+]), registerUserStepOne);
+
 router.post('/register-verify',registerUserStepTwo);
 
 // Route for User Login

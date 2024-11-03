@@ -13,7 +13,10 @@ exports.test = (req, res, next) =>{
 }
 exports.registerUserStepOne = catchAsyncErrors(async (req, res, next) => {
     const { name, username, email, password, bio, interests, isSeller, storeName, storeDescription } = req.body;
-    const { buffer, mimetype } = req.file || {};
+    
+    // Separate uploads for profile picture and store image (if seller)
+    const { profilePicBuffer, profilePicMimetype } = req.files?.profilePic ? req.files.profilePic[0] : {};  // Profile pic
+    const { storeImageBuffer, storeImageMimetype } = req.files?.storeImage ? req.files.storeImage[0] : {};  // Store image (if seller)
 
     // Validate user data
     const { error } = validateUser(req.body);
@@ -35,7 +38,24 @@ exports.registerUserStepOne = catchAsyncErrors(async (req, res, next) => {
 
     // Generate OTP
     const otp = Math.floor(100000 + Math.random() * 900000);
-    req.session.userDetails = { name, username, email, password, bio, interests, isSeller, storeName, storeDescription, buffer, mimetype };
+    
+    // Save user details and images in session
+    req.session.userDetails = { 
+        name, 
+        username, 
+        email, 
+        password, 
+        bio, 
+        interests, 
+        isSeller, 
+        storeName, 
+        storeDescription, 
+        profilePicBuffer,  // Profile image buffer
+        profilePicMimetype,  // Profile image mimetype
+        storeImageBuffer,  // Store image buffer (if seller)
+        storeImageMimetype  // Store image mimetype (if seller)
+    };
+    
     req.session.otp = otp;
     req.session.otpExpire = Date.now() + 10 * 60 * 1000; // 10 minutes expiry
 
@@ -43,7 +63,7 @@ exports.registerUserStepOne = catchAsyncErrors(async (req, res, next) => {
     res.status(200).json({ message: "OTP sent to your email." });
 });
 
-// // Register User Step 2 (for OTP verification)
+
 exports.registerUserStepTwo = catchAsyncErrors(async (req, res, next) => {
     const { otp } = req.body;
 
@@ -51,14 +71,13 @@ exports.registerUserStepTwo = catchAsyncErrors(async (req, res, next) => {
         return next(new ErrorHandler("Please provide an OTP.", 400));
     }
 
-    const { otp: sessionOtp, otpExpire } = req.session;
+    const { otp: sessionOtp, otpExpire, userDetails } = req.session;
 
     if (!sessionOtp) {
         return next(new ErrorHandler("No OTP found in session.", 400));
     }
 
     if (Date.now() > otpExpire) {
-        console.log("OTP expired.");
         return next(new ErrorHandler("OTP has expired.", 400));
     }
 
@@ -68,22 +87,29 @@ exports.registerUserStepTwo = catchAsyncErrors(async (req, res, next) => {
     if (trimmedInputOtp !== trimmedSessionOtp) {
         return next(new ErrorHandler("Invalid OTP.", 400));
     }
+
     // Proceed with user registration if OTP is valid
-    const userDetails = req.session.userDetails;
     const hashedPassword = await bcrypt.hash(userDetails.password, 10);
-    
+
     const newUser = new User({
         name: userDetails.name,
         username: userDetails.username,
         email: userDetails.email,
         password: hashedPassword,
         bio: userDetails.bio || null,
-        profilePic: userDetails.buffer || null,
-        imageMimeType: userDetails.mimetype || null,
+        
+        // Save profile image buffer and mimetype
+        profilePic: userDetails.profilePicBuffer || null,  
+        profilePicMimeType: userDetails.profilePicMimetype || null,  
+
         interests: userDetails.interests,
         isSeller: userDetails.isSeller || false,
+
+        // Save store details and store image if user is a seller
         storeName: userDetails.isSeller ? userDetails.storeName : null,
         storeDescription: userDetails.isSeller ? userDetails.storeDescription : null,
+        storeImage: userDetails.isSeller ? userDetails.storeImageBuffer : null,
+        storeImageMimeType: userDetails.isSeller ? userDetails.storeImageMimetype : null
     });
 
     await newUser.save();
@@ -99,8 +125,6 @@ exports.registerUserStepTwo = catchAsyncErrors(async (req, res, next) => {
 
     res.status(201).json({ token, message: "User registered successfully.", newUser });
 });
-
-
 
 // User Login
 exports.loginUser = catchAsyncErrors(async (req, res, next) => {
@@ -151,12 +175,11 @@ exports.getUserProfile = catchAsyncErrors(async (req, res, next) => {
 
     res.json(user);
 });
-// Update User and Seller Profile with image update
 exports.updateProfile = catchAsyncErrors(async (req, res, next) => {
-    const { bio, name, isSeller, interests, storeName, storeDescription } = req.body; // Additional fields for seller included
-    const { buffer, mimetype } = req.file || {}; // File handling (profile picture)
+    const { bio, name, isSeller, interests, storeName, storeDescription } = req.body;
+    const { buffer: profilePicBuffer, mimetype: profilePicMimetype } = req.file || {};
+    const { buffer: storeImageBuffer, mimetype: storeImageMimetype } = req.files?.storeImage ? req.files.storeImage[0] : {}; // Extract store image
 
-    // Construct an object with only the fields that need to be updated
     const updateFields = {
         ...(bio && { bio }),
         ...(name && { name }),
@@ -166,36 +189,35 @@ exports.updateProfile = catchAsyncErrors(async (req, res, next) => {
         ...(isSeller && storeDescription && { storeDescription }),
     };
 
-    // Check if a new profile picture is uploaded and add it to the updateFields object
-    if (buffer && mimetype) {
-        updateFields.profilePic = buffer;
-        updateFields.imageMimeType = mimetype;
+    // Add profile picture if uploaded
+    if (profilePicBuffer && profilePicMimetype) {
+        updateFields.profilePic = profilePicBuffer;
+        updateFields.imageMimeType = profilePicMimetype;
     }
 
-    // Update the user details based on the provided user ID (from token or session)
-    const user = await User.findByIdAndUpdate(
-        req.user.id,   // Assuming you have req.user populated with the logged-in user's ID
-        updateFields,  // Only update the fields that have changed
-        { new: true, runValidators: true } // Return the updated document and run validation
-    ).select('-password'); // Exclude password from the returned data
+    // Add store image if uploaded
+    if (isSeller && storeImageBuffer && storeImageMimetype) {
+        updateFields.storeImage = storeImageBuffer; // Assuming the User model has a storeImage field
+        updateFields.storeImageMimeType = storeImageMimetype; // Assuming the User model has a storeImageMimeType field
+    }
 
-    // If user not found
+    const user = await User.findByIdAndUpdate(
+        req.user.id,
+        updateFields,
+        { new: true, runValidators: true }
+    ).select('-password');
+
     if (!user) {
         return next(new ErrorHandler("User not found.", 404));
     }
 
-    // Check if the user is a seller
-    if (user.isSeller) {
-        const sellerDetails = {
-            storeName: user.storeName,
-            storeDescription: user.storeDescription,
-            // Add any other seller-specific details you want to return
-        };
-        res.json({ message: "Seller profile updated successfully", user, sellerDetails });
-    } else {
-        res.json({ message: "User profile updated successfully", user });
-    }
+    const responseMessage = user.isSeller 
+        ? { message: "Seller profile updated successfully", user, sellerDetails: { storeName: user.storeName, storeDescription: user.storeDescription } }
+        : { message: "User profile updated successfully", user };
+
+    res.json(responseMessage);
 });
+
 
 
 
