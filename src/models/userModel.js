@@ -43,7 +43,15 @@ const userSchema = new mongoose.Schema({
         default: null,
         trim: true,
     },
-    imageMimeType: {
+    profilePicMimeType: {
+        type: String,
+    },
+    storeImage: {
+        type: Buffer,
+        default: null,
+        trim: true,
+    },
+    storeImageMimeType: {
         type: String,
     },
     bio: {

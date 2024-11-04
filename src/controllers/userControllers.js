@@ -11,12 +11,12 @@ exports.test = (req, res, next) =>{
     res.json({ message: 'hello user' });
 
 }
-exports.registerUserStepOne = catchAsyncErrors(async (req, res, next) => {
+exports.registerUser = catchAsyncErrors(async (req, res, next) => {
     const { name, username, email, password, bio, interests, isSeller, storeName, storeDescription } = req.body;
-    
+
     // Separate uploads for profile picture and store image (if seller)
-    const { profilePicBuffer, profilePicMimetype } = req.files?.profilePic ? req.files.profilePic[0] : {};  // Profile pic
-    const { storeImageBuffer, storeImageMimetype } = req.files?.storeImage ? req.files.storeImage[0] : {};  // Store image (if seller)
+    const { profilePicBuffer, profilePicMimetype } = req.files?.profilePic ? req.files.profilePic[0] : {}; // Profile pic
+    const { storeImageBuffer, storeImageMimetype } = req.files?.storeImage ? req.files.storeImage[0] : {}; // Store image (if seller)
 
     // Validate user data
     const { error } = validateUser(req.body);
@@ -36,80 +36,24 @@ exports.registerUserStepOne = catchAsyncErrors(async (req, res, next) => {
         return next(new ErrorHandler("Username is already taken.", 400));
     }
 
-    // Generate OTP
-    const otp = Math.floor(100000 + Math.random() * 900000);
-    
-    // Save user details and images in session
-    req.session.userDetails = { 
-        name, 
-        username, 
-        email, 
-        password, 
-        bio, 
-        interests, 
-        isSeller, 
-        storeName, 
-        storeDescription, 
-        profilePicBuffer,  // Profile image buffer
-        profilePicMimetype,  // Profile image mimetype
-        storeImageBuffer,  // Store image buffer (if seller)
-        storeImageMimetype  // Store image mimetype (if seller)
-    };
-    
-    req.session.otp = otp;
-    req.session.otpExpire = Date.now() + 10 * 60 * 1000; // 10 minutes expiry
+    // Hash the password
+    const hashedPassword = await bcrypt.hash(password, 10);
 
-    await sendMail(email, otp);
-    res.status(200).json({ message: "OTP sent to your email." });
-});
-
-
-exports.registerUserStepTwo = catchAsyncErrors(async (req, res, next) => {
-    const { otp } = req.body;
-
-    if (!otp) {
-        return next(new ErrorHandler("Please provide an OTP.", 400));
-    }
-
-    const { otp: sessionOtp, otpExpire, userDetails } = req.session;
-
-    if (!sessionOtp) {
-        return next(new ErrorHandler("No OTP found in session.", 400));
-    }
-
-    if (Date.now() > otpExpire) {
-        return next(new ErrorHandler("OTP has expired.", 400));
-    }
-
-    const trimmedSessionOtp = String(sessionOtp).trim();
-    const trimmedInputOtp = String(otp).trim();
-
-    if (trimmedInputOtp !== trimmedSessionOtp) {
-        return next(new ErrorHandler("Invalid OTP.", 400));
-    }
-
-    // Proceed with user registration if OTP is valid
-    const hashedPassword = await bcrypt.hash(userDetails.password, 10);
-
+    // Create a new user
     const newUser = new User({
-        name: userDetails.name,
-        username: userDetails.username,
-        email: userDetails.email,
+        name,
+        username,
+        email,
         password: hashedPassword,
-        bio: userDetails.bio || null,
-        
-        // Save profile image buffer and mimetype
-        profilePic: userDetails.profilePicBuffer || null,  
-        profilePicMimeType: userDetails.profilePicMimetype || null,  
-
-        interests: userDetails.interests,
-        isSeller: userDetails.isSeller || false,
-
-        // Save store details and store image if user is a seller
-        storeName: userDetails.isSeller ? userDetails.storeName : null,
-        storeDescription: userDetails.isSeller ? userDetails.storeDescription : null,
-        storeImage: userDetails.isSeller ? userDetails.storeImageBuffer : null,
-        storeImageMimeType: userDetails.isSeller ? userDetails.storeImageMimetype : null
+        bio: bio || null,
+        profilePic: profilePicBuffer || null,
+        profilePicMimeType: profilePicMimetype || null,
+        interests,
+        isSeller: isSeller || false,
+        storeName: isSeller ? storeName : null,
+        storeDescription: isSeller ? storeDescription : null,
+        storeImage: isSeller ? storeImageBuffer : null,
+        storeImageMimeType: isSeller ? storeImageMimetype : null
     });
 
     await newUser.save();
@@ -117,11 +61,6 @@ exports.registerUserStepTwo = catchAsyncErrors(async (req, res, next) => {
     // Generate JWT token
     const token = generateToken(newUser._id, false, newUser.isSeller, newUser._id);
     res.cookie('token', token, { httpOnly: true, expires: new Date(Date.now() + 60 * 60 * 1000) });
-
-    // Clear session data
-    req.session.otp = null;
-    req.session.userDetails = null;
-    req.session.otpExpire = null;
 
     res.status(201).json({ token, message: "User registered successfully.", newUser });
 });
@@ -423,3 +362,27 @@ exports.getActivityFeed = catchAsyncErrors(async (req, res, next) => {
 
     res.status(200).json({ activityFeed });
 });
+
+
+
+// Fetch all sellers and return only their store names
+exports.getAllStores =async (req, res) => {
+    try {
+        // Find all users who are sellers and only return the storeName field
+        const stores = await User.find({ isSeller: true }, 'storeName');
+        
+        // Send the response with the store names
+        res.status(200).json({
+            success: true,
+            data: stores,
+        });
+    } catch (error) {
+        console.error('Error fetching stores:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Internal Server Error',
+        });
+    }
+};
+
+

@@ -1,5 +1,5 @@
 const express = require('express');
-const {  loginUser, logoutUser, getUserProfile, updateProfile, test, passwordResetUser, otpVerifyUser, passwordUpdateUser, resendOtpUser, followSeller, unfollowSeller, getSellerProfile, getSellerFeed, getActivityFeed, registerUserStepOne, registerUserStepTwo } = require('../controllers/userControllers'); // Import the user controller functions
+const {  loginUser, logoutUser, getUserProfile, updateProfile, test, passwordResetUser, otpVerifyUser, passwordUpdateUser, resendOtpUser, followSeller, unfollowSeller, getSellerProfile, getSellerFeed, getActivityFeed, getAllStores, registerUser } = require('../controllers/userControllers'); // Import the user controller functions
 const upload = require("../config/multer-config");
 const { isLoggedIn } = require("../middlewares/checkAuth")
 
@@ -9,9 +9,8 @@ const router = express.Router();
 router.post('/register', upload.fields([
     { name: "profilePic", maxCount: 1 },  // Upload single profile picture
     { name: "storeImage", maxCount: 1 }    // Upload single store image
-]), registerUserStepOne);
+]), registerUser);
 
-router.post('/register-verify',registerUserStepTwo);
 
 // Route for User Login
 router.post('/login', loginUser);
@@ -54,5 +53,6 @@ router.get('/seller/:sellerId/feed', getSellerFeed);
 
 // Activity Feed
 router.get('/activity-feed', isLoggedIn, getActivityFeed);
+router.get('/stores', isLoggedIn, getAllStores);
 
 module.exports = router;
