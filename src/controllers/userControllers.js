@@ -1,6 +1,7 @@
 const bcrypt = require('bcrypt');
 const { User, validateUser } = require('../models/userModel'); // Import the User model and validation
 const {productModel, productValidation } = require('../models/productModel'); // Import the Product model and validation
+const Notification  = require('../models/notification-Model'); // Import the Product model and validation
 const { catchAsyncErrors } = require("../middlewares/catchAsyncError");
 const ErrorHandler = require("../utils/ErrorHandler");
 const { generateToken } = require("../utils/SendToken");  
@@ -284,12 +285,10 @@ exports.resendOtpUser = catchAsyncErrors(async (req, res, next) => {
 
     res.status(200).json({ message: "OTP has been resent." });
 });
+const sendNotification = require('../utils/sendNotifications'); // Import the notification helper
 
-// Follow Seller
 exports.followSeller = catchAsyncErrors(async (req, res, next) => {
     const { sellerId } = req.body;
-    console.log(sellerId);
-    
     const userId = req.user.id;
 
     // Check if the seller exists
@@ -309,10 +308,15 @@ exports.followSeller = catchAsyncErrors(async (req, res, next) => {
     // Add the seller to the user's following
     await User.findByIdAndUpdate(userId, { $addToSet: { following: sellerId } }, { new: true });
 
+    // Get the Socket.IO instance from the app
+    const io = req.app.get('socketio');
+
+    // Send the notification using the helper function
+    await sendNotification(seller._id, `${req.user.id} started following you.`, 'follow', userId, null, io);
+
     res.status(200).json({ message: "Seller followed successfully." });
 });
 
-// Unfollow Seller
 exports.unfollowSeller = catchAsyncErrors(async (req, res, next) => {
     const { sellerId } = req.body;
     const userId = req.user.id;
@@ -323,7 +327,7 @@ exports.unfollowSeller = catchAsyncErrors(async (req, res, next) => {
         return next(new ErrorHandler("Seller not found.", 404));
     }
 
-    // Check if the user is not following the seller
+    // Check if the user is following the seller
     if (!seller.followers.includes(userId)) {
         return next(new ErrorHandler("You are not following this seller.", 400));
     }
@@ -333,6 +337,11 @@ exports.unfollowSeller = catchAsyncErrors(async (req, res, next) => {
 
     // Remove the seller from the user's following
     await User.findByIdAndUpdate(userId, { $pull: { following: sellerId } }, { new: true });
+
+    
+    const io = req.app.get('socketio');
+    await sendNotification(seller._id, `${req.user.id} unfollowed you.`, 'unfollow', userId, null, io);
+    
 
     res.status(200).json({ message: "Seller unfollowed successfully." });
 });

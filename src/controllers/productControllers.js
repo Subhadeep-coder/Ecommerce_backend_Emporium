@@ -7,6 +7,7 @@ const test = catchAsyncErrors(async (req, res, next) => {
   res.json({ message: 'products' });
 });
 
+
 const createProduct = catchAsyncErrors(async (req, res, next) => {
   const user = await User.findById(req.user.id);
 
@@ -20,18 +21,18 @@ const createProduct = catchAsyncErrors(async (req, res, next) => {
 
   const { title, description, price, category, inventory } = req.body;
 
-  // Check if at least 2 images and at most 5 images are uploaded
+  // Check if image files are between 2 and 5
   if (!req.files || req.files.length < 2 || req.files.length > 5) {
     return next(new ErrorHandler("You must upload between 2 and 5 images.", 400));
   }
 
-  // Extract image buffers and mimetypes
+  // Convert images for saving in the database
   const images = req.files.map(file => ({
     data: file.buffer,
-    mimetype: file.mimetype
+    mimetype: file.mimetype,
   }));
 
-  // Validate product fields (excluding images here)
+  // Validate product details
   const { error } = productValidation.validate({
     title,
     description,
@@ -43,25 +44,40 @@ const createProduct = catchAsyncErrors(async (req, res, next) => {
   
   if (error) return next(new ErrorHandler(error.details[0].message, 400));
 
+  // Create new product
   const newProduct = new productModel({
     title,
-    images,  // Store the array of image objects
+    images,
     description,
     price,
     category,
     inventory,
-    user: user._id
+    user: user._id,
   });
 
-  // Add the new product to the user's activity feed
+  // Add to seller's activity feed
   user.activityFeed.push({
     type: 'new_product',
     user: user._id,
-    product: newProduct._id
+    product: newProduct._id,
   });
 
+  // Save the product and update the user
   await newProduct.save();
   await user.save();
+
+  // Emit notifications to all followers
+  const io = req.app.get('socketio'); // Assuming Socket.IO is set up on the app instance
+  const followers = await User.find({ _id: { $in: user.followers } });
+
+  // Emit new product notification to each follower
+  followers.forEach(follower => {
+    io.to(follower._id.toString()).emit('new_product', {
+      message: `A new product titled "${title}" was added by ${user.storeName}`,
+      productId: newProduct._id,
+    });
+  });
+
   res.status(201).json({ message: "Product created successfully", product: newProduct });
 });
 
@@ -226,46 +242,49 @@ const removeFromWishlist = catchAsyncErrors(async (req, res, next) => {
 });
 
 
+const sendNotification = require('../utils/sendNotifications'); // Import the notification helper
 
 const likeProduct = catchAsyncErrors(async (req, res, next) => {
-  const productId = req.params.id;
-  const userId = req.user.id;
+    const productId = req.params.id;
+    const userId = req.user.id;
 
-  const product = await productModel.findById(productId);
-  if (!product) {
-    return next(new ErrorHandler("Product not found", 404));
-  }
+    const product = await productModel.findById(productId);
+    if (!product) {
+        return next(new ErrorHandler("Product not found", 404));
+    }
 
-  // Check if the product has a valid user associated with it
-  const productOwner = await User.findById(product.user);
-  if (!productOwner) {
-    return next(new ErrorHandler("User associated with this product not found", 404));
-  }
+    const productOwner = await User.findById(product.user);
+    if (!productOwner) {
+        return next(new ErrorHandler("User associated with this product not found", 404));
+    }
 
-  if (product.likes.includes(userId)) {
-    return next(new ErrorHandler("You have already liked this product", 400));
-  }
+    if (product.likes.includes(userId)) {
+        return next(new ErrorHandler("You have already liked this product", 400));
+    }
 
-  product.likes.push(userId);
-  await product.save();
+    product.likes.push(userId);
+    await product.save();
 
-  productOwner.activityFeed.push({
-    type: 'like',
-    user: userId,
-    product: productId
-  });
+    productOwner.activityFeed.push({
+        type: 'like',
+        user: userId,
+        product: productId
+    });
+    await productOwner.save();
 
-  await productOwner.save();
+    // Get the Socket.IO instance from the app
+    const io = req.app.get('socketio');
 
-  // Return the number of likes
-  res.status(200).json({
-    message: "Product liked successfully",
-    likesCount: product.likes.length,
-    commentsCount: product.comments.length,
-    sharesCount: product.shares.length
-  });
+    // Send the notification using the helper function
+    await sendNotification(productOwner._id, `${req.user.id} liked your product.`, 'like', userId, productId, io);
+
+    res.status(200).json({
+        message: "Product liked successfully",
+        likesCount: product.likes.length,
+        commentsCount: product.comments.length,
+        sharesCount: product.shares.length
+    });
 });
-
 
 
 const commentOnProduct = catchAsyncErrors(async (req, res, next) => {
@@ -275,75 +294,77 @@ const commentOnProduct = catchAsyncErrors(async (req, res, next) => {
 
   const product = await productModel.findById(productId);
   if (!product) {
-    return next(new ErrorHandler("Product not found", 404));
+      return next(new ErrorHandler("Product not found", 404));
   }
 
-  // Check if the product has a valid user associated with it
   const productOwner = await User.findById(product.user);
   if (!productOwner) {
-    return next(new ErrorHandler("User associated with this product not found", 404));
+      return next(new ErrorHandler("User associated with this product not found", 404));
   }
 
   product.comments.push({ user: userId, comment });
   await product.save();
 
   productOwner.activityFeed.push({
-    type: 'comment',
-    user: userId,
-    product: productId
+      type: 'comment',
+      user: userId,
+      product: productId
   });
 
   await productOwner.save();
 
-  // Return the number of comments
+  // Get the Socket.IO instance from the app
+  const io = req.app.get('socketio');
+
+  // Send the notification using the helper function
+  await sendNotification(productOwner._id, `${req.user.id} commented on your product.`, 'comment', userId, productId, io);
+
   res.status(200).json({
-    message: "Comment added successfully",
-    likesCount: product.likes.length,
-    commentsCount: product.comments.length,
-    sharesCount: product.shares.length
+      message: "Comment added successfully",
+      likesCount: product.likes.length,
+      commentsCount: product.comments.length,
+      sharesCount: product.shares.length
   });
 });
-
 
 const shareProduct = catchAsyncErrors(async (req, res, next) => {
   const productId = req.params.id;
   const userId = req.user.id;
   const { sharedTo } = req.body;
 
-  // Find the product by ID
-  const product = await productModel.findById(productId).populate('user'); // Populate the user field
+  const product = await productModel.findById(productId).populate('user');
   if (!product) {
-    return next(new ErrorHandler("Product not found", 404));
+      return next(new ErrorHandler("Product not found", 404));
   }
 
-  // Push the share info to the product shares array
   product.shares.push({ user: userId, sharedTo });
   await product.save();
 
-  // Ensure product.user is populated and activityFeed exists
   if (!product.user.activityFeed) {
-    product.user.activityFeed = []; // Initialize if undefined
+      product.user.activityFeed = [];
   }
 
-  // Add the share activity to the user's activity feed
   product.user.activityFeed.push({
-    type: 'share',
-    user: userId,
-    product: productId
+      type: 'share',
+      user: userId,
+      product: productId
   });
 
-  // Save the updated user
   await product.user.save();
 
-  // Return the number of shares
+  // Get the Socket.IO instance from the app
+  const io = req.app.get('socketio');
+
+  // Send the notification using the helper function
+  await sendNotification(product.user._id, `${req.user.id} shared your product.`, 'share', userId, productId, io);
+
   res.status(200).json({
-    message: "Product shared successfully",
-    likesCount: product.likes.length,
-    commentsCount: product.comments.length,
-    sharesCount: product.shares.length
+      message: "Product shared successfully",
+      likesCount: product.likes.length,
+      commentsCount: product.comments.length,
+      sharesCount: product.shares.length
   });
 });
-
 const getSellerProducts = catchAsyncErrors(async (req, res, next) => {
   const seller = await User.findById(req.user.id);
 
