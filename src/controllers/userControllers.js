@@ -154,7 +154,7 @@ exports.getUserProfile = catchAsyncErrors(async (req, res, next) => {
 });
 exports.updateProfile = catchAsyncErrors(async (req, res, next) => {
     const { bio, name, isSeller, interests, storeName, storeDescription } = req.body;
-    const { buffer: profilePicBuffer, mimetype: profilePicMimetype } = req.file || {};
+    const { buffer: profilePicBuffer, mimetype: profilePicMimetype } =  req.files?.profilePic ? req.files.profilePic[0] : {};
     const { buffer: storeImageBuffer, mimetype: storeImageMimetype } = req.files?.storeImage ? req.files.storeImage[0] : {}; // Extract store image
 
     const updateFields = {
@@ -404,23 +404,25 @@ exports.getActivityFeed = catchAsyncErrors(async (req, res, next) => {
 
 
 // Fetch all sellers and return only their store names
-exports.getAllStores =async (req, res) => {
+// Controller to get all stores
+exports.getAllStores = async (req, res) => {
     try {
-        // Find all users who are sellers and only return the storeName field
-        const stores = await User.find({ isSeller: true }, 'storeName');
+        // Find all users who are sellers and return storeName and storeImage fields
+        const stores = await User.find({ isSeller: true }, 'storeName storeImage');
         
-        // Send the response with the store names
+        // Send the response with the store names and images
         res.status(200).json({
             success: true,
             data: stores,
         });
     } catch (error) {
-        console.error('Error fetching stores:', error);
+        console.error('Error fetching stores:', error); // Log the error for debugging
         res.status(500).json({
             success: false,
             message: 'Internal Server Error',
         });
     }
 };
+
 
 
