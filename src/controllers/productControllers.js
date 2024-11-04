@@ -256,7 +256,14 @@ const likeProduct = catchAsyncErrors(async (req, res, next) => {
   });
 
   await productOwner.save();
-  res.status(200).json({ message: "Product liked successfully" });
+
+  // Return the number of likes
+  res.status(200).json({
+    message: "Product liked successfully",
+    likesCount: product.likes.length,
+    commentsCount: product.comments.length,
+    sharesCount: product.shares.length
+  });
 });
 
 
@@ -287,8 +294,16 @@ const commentOnProduct = catchAsyncErrors(async (req, res, next) => {
   });
 
   await productOwner.save();
-  res.status(200).json({ message: "Comment added successfully" });
+
+  // Return the number of comments
+  res.status(200).json({
+    message: "Comment added successfully",
+    likesCount: product.likes.length,
+    commentsCount: product.comments.length,
+    sharesCount: product.shares.length
+  });
 });
+
 
 const shareProduct = catchAsyncErrors(async (req, res, next) => {
   const productId = req.params.id;
@@ -320,9 +335,15 @@ const shareProduct = catchAsyncErrors(async (req, res, next) => {
   // Save the updated user
   await product.user.save();
 
-  // Send success response
-  res.status(200).json({ message: "Product shared successfully" });
+  // Return the number of shares
+  res.status(200).json({
+    message: "Product shared successfully",
+    likesCount: product.likes.length,
+    commentsCount: product.comments.length,
+    sharesCount: product.shares.length
+  });
 });
+
 const getSellerProducts = catchAsyncErrors(async (req, res, next) => {
   const seller = await User.findById(req.user.id);
 

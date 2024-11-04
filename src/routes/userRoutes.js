@@ -22,7 +22,10 @@ router.get('/logout', logoutUser);
 router.get('/profile', isLoggedIn, getUserProfile);
 
 // Route to Update User Profile (Protected)
-router.put('/update-profile',upload.single("profilePic"), updateProfile);
+router.put('/update-profile',upload.fields([
+    { name: "profilePic", maxCount: 1 },  // Upload single profile picture
+    { name: "storeImage", maxCount: 1 }    // Upload single store image
+]), updateProfile);
 
 // Test Route
 router.get('/', test);

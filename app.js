@@ -1,49 +1,58 @@
-require('dotenv').config()
-
-const express = require("express")
-const app = express()
-const userRouter = require("./src/routes/userRoutes")
-const adminRouter = require("./src/routes/adminRoutes")
-const db = require("./src/config/mongoose-connection")
+require('dotenv').config();
+const express = require('express');
+const http = require('http'); // Required for setting up Socket.IO with Express
+const { Server } = require('socket.io'); // Importing Socket.IO
 const cookieParser = require('cookie-parser');
-const productRouter = require("./src/routes/productRoutes")
-const cartRouter = require("./src/routes/cartRoutes")
-const orderRouter = require("./src/routes/orderRoutes")
-const paymentRouter = require("./src/routes/paymentRoutes")
+const expressSession = require('express-session');
 
+// Importing routers
+const userRouter = require("./src/routes/userRoutes");
+const adminRouter = require("./src/routes/adminRoutes");
+const productRouter = require("./src/routes/productRoutes");
+const cartRouter = require("./src/routes/cartRoutes");
+const orderRouter = require("./src/routes/orderRoutes");
+const paymentRouter = require("./src/routes/paymentRoutes");
+const googleAuthRoutes = require("./src/routes/google-auth-Routes");
+
+// Import database connection and Socket.IO setup
+const db = require("./src/config/mongoose-connection");
+const { setupSockets } = require('./src/utils/socket-io');
+
+// Connect to MongoDB
+const app = express();
+
+// Creating HTTP server from the Express app
+const server = http.createServer(app);
+
+// Initializing Socket.IO with the HTTP server
+const io = new Server(server);
+
+// Middleware
+app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(cookieParser());
-const googleAuthRoutes = require("./src/routes/google-auth-Routes")
-const googleauth = require("./src/utils/googleAuth")
-googleauth()
 
-const expressSession = require('express-session')
-
+// Express session
 app.use(expressSession({
     resave: false,
     saveUninitialized: false,
     secret: process.env.SECRET_KEY,
-   
-}))
+}));
 
-app.use("/", userRouter)
-app.use("/admin", adminRouter)
-app.use("/product", productRouter)
-app.use('/cart', cartRouter);
-app.use('/order', orderRouter);
-app.use('/payment', paymentRouter);
+// Setup Socket.IO with the existing function
+setupSockets(io);
 
+// Define routes
+app.use("/", userRouter);
+app.use("/admin", adminRouter);
+app.use("/product", productRouter);
+app.use("/cart", cartRouter);
+app.use("/order", orderRouter);
+app.use("/payment", paymentRouter);
+app.use("/auth", googleAuthRoutes);
 
-
-
-app.use("/auth", googleAuthRoutes)
-
-
-
-
-
-app.listen(process.env.PORT || 3000, () =>{
-    console.log("server is running");
-    
-})
+// Server listens on the specified port
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}..`);
+});
