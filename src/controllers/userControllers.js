@@ -92,7 +92,45 @@ exports.loginUser = catchAsyncErrors(async (req, res, next) => {
 
     res.json({ token, message: "Logged in successfully." , user});
 });
+// Seller Login
+exports.loginSeller = catchAsyncErrors(async (req, res, next) => {
+    const { email, password } = req.body;
 
+    // Find the user by email and also fetch the password
+    const user = await User.findOne({ email }).select('+password');
+    
+    // Check if the user exists and is a seller
+    if (!user) {
+        return next(new ErrorHandler("Invalid email or password.", 400)); // Agar user hi nahi mila
+    }
+
+    // Check if the user is a seller
+    if (!user.isSeller) {
+        return next(new ErrorHandler("User is not authorized as a seller.", 403)); // User seller nahi hai
+    }
+
+    // Compare password
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+        return next(new ErrorHandler("Invalid email or password.", 400)); // Password match nahi hua
+    }
+
+    // Create JWT token for seller
+    const token = generateToken(user._id, false, user.isSeller, user._id); // isAdmin false, isSeller true
+
+    // Set token in cookie (optional)
+    res.cookie('token', token, {
+        httpOnly: true,
+        expires: new Date(Date.now() + 60 * 60 * 1000), // Cookie expires in 1 hour
+    });
+
+    // Successful login
+    res.json({ 
+        token, 
+        message: "Seller logged in successfully.", 
+        user 
+    });
+});
 // User Logout
 exports.logoutUser = catchAsyncErrors(async (req, res, next) => {
     res.cookie('token', null, {

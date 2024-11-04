@@ -13,10 +13,11 @@ const cartRouter = require("./src/routes/cartRoutes");
 const orderRouter = require("./src/routes/orderRoutes");
 const paymentRouter = require("./src/routes/paymentRoutes");
 const googleAuthRoutes = require("./src/routes/google-auth-Routes");
+const messageRoutes = require("./src/routes/messageRoutes");
 
 // Import database connection and Socket.IO setup
 const db = require("./src/config/mongoose-connection");
-const { setupSockets } = require('./src/utils/socket-io');
+const { setupSocket } = require('./src/utils/socket-io');
 
 // Connect to MongoDB
 const app = express();
@@ -40,7 +41,7 @@ app.use(expressSession({
 }));
 
 // Setup Socket.IO with the existing function
-setupSockets(io);
+setupSocket(io);
 
 // Define routes
 app.use("/", userRouter);
@@ -50,6 +51,7 @@ app.use("/cart", cartRouter);
 app.use("/order", orderRouter);
 app.use("/payment", paymentRouter);
 app.use("/auth", googleAuthRoutes);
+app.use("/meesages", messageRoutes);
 
 // Server listens on the specified port
 const PORT = process.env.PORT || 3000;
