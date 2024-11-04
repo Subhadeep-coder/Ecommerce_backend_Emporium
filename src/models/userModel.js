@@ -96,7 +96,7 @@ const userSchema = new mongoose.Schema({
     }],
     activityFeed: [{
         type: {
-            type: String, enum: ['new_product', 'sale', 'comment', 'like', 'share', 'follow'] // Types of activities
+            type: String, enum: ['new_product', 'sale', 'comment', 'like', 'share', 'follow', 'remove_wishlist'] // Types of activities
         },
         user: { type: mongoose.Schema.Types.ObjectId, ref: 'user' }, // The user who initiated the activity
         product: { type: mongoose.Schema.Types.ObjectId, ref: 'product' }, // The product related to the activity
