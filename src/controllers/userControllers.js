@@ -7,17 +7,31 @@ const ErrorHandler = require("../utils/ErrorHandler");
 const { generateToken } = require("../utils/SendToken");  
 const sendMail = require("../utils/nodemailer")
 const crypto = require("crypto")
+const jwt = require('jsonwebtoken');
 // Import the token generation function
 exports.test = (req, res, next) =>{
     res.json({ message: 'hello user' });
 
 }
-exports.registerUser = catchAsyncErrors(async (req, res, next) => {
-    const { name, username, email, password, bio, interests, isSeller, storeName, storeDescription } = req.body;
 
-    // Separate uploads for profile picture and store image (if seller)
-    const { profilePicBuffer, profilePicMimetype } = req.files?.profilePic ? req.files.profilePic[0] : {}; // Profile pic
-    const { storeImageBuffer, storeImageMimetype } = req.files?.storeImage ? req.files.storeImage[0] : {}; // Store image (if seller)
+
+// Generate Activation Code and Token (use this method from your original code)
+const generateActivationCode = (user) => {
+    const activationCode = crypto.randomInt(1000000).toString();
+    
+    const token = jwt.sign(
+        { user, activationCode },
+        process.env.JWT_SECRET,  // Ensure this is set in your environment variables
+        { expiresIn: "5m" }      // Token expires in 5 minutes
+    );
+    return { token, activationCode };
+};
+
+exports.registerUserStepOne = catchAsyncErrors(async (req, res, next) => {
+    const { name, username, email, password, bio, interests, isSeller, storeName, storeDescription } = req.body;
+    
+    const { profilePicBuffer, profilePicMimetype } = req.files?.profilePic ? req.files.profilePic[0] : {};  
+    const { storeImageBuffer, storeImageMimetype } = req.files?.storeImage ? req.files.storeImage[0] : {};  
 
     // Validate user data
     const { error } = validateUser(req.body);
@@ -25,48 +39,92 @@ exports.registerUser = catchAsyncErrors(async (req, res, next) => {
         return next(new ErrorHandler(error.details[0].message, 400));
     }
 
-    // Check if email already exists
     const existingEmailUser = await User.findOne({ email });
     if (existingEmailUser) {
         return next(new ErrorHandler("User already registered with this email.", 400));
     }
 
-    // Check if username already exists
     const existingUsernameUser = await User.findOne({ username });
     if (existingUsernameUser) {
         return next(new ErrorHandler("Username is already taken.", 400));
     }
 
-    // Hash the password
-    const hashedPassword = await bcrypt.hash(password, 10);
+    // Generate activation token and code
+    const user = { name, username, email };  // Prepare a user object for token generation
+    const { token: activationToken, activationCode } = generateActivationCode(user);
 
-    // Create a new user
-    const newUser = new User({
-        name,
-        username,
-        email,
-        password: hashedPassword,
-        bio: bio || null,
-        profilePic: profilePicBuffer || null,
-        profilePicMimeType: profilePicMimetype || null,
-        interests,
-        isSeller: isSeller || false,
-        storeName: isSeller ? storeName : null,
-        storeDescription: isSeller ? storeDescription : null,
-        storeImage: isSeller ? storeImageBuffer : null,
-        storeImageMimeType: isSeller ? storeImageMimetype : null
-    });
+    // Save user details and images in session along with activation code
+    req.session.userDetails = { 
+        name, username, email, password, bio, interests, isSeller, storeName, storeDescription, 
+        profilePicBuffer, profilePicMimetype, storeImageBuffer, storeImageMimetype
+    };
+    
+    req.session.activationCode = activationCode;
+    req.session.activationTokenExpire = Date.now() + 5 * 60 * 1000; // Token expires in 5 minutes
 
-    await newUser.save();
+    await sendMail(email, activationCode);  // Send activation code via email
+    res.status(200).json({ message: "Activation code sent to your email.", activationToken });
+});
+exports.registerUserStepTwo = catchAsyncErrors(async (req, res, next) => {
+    const { activationToken, activationCode } = req.body;
 
-    // Generate JWT token
-    const token = generateToken(newUser._id, false, newUser.isSeller, newUser._id);
-    res.cookie('token', token, { httpOnly: true, expires: new Date(Date.now() + 60 * 60 * 1000) });
+    if (!activationToken || !activationCode) {
+        return next(new ErrorHandler("Please provide the activation token and code.", 400));
+    }
 
-    res.status(201).json({ token, message: "User registered successfully.", newUser });
+    const { activationCode: sessionActivationCode, activationTokenExpire, userDetails } = req.session;
+
+    if (!sessionActivationCode || Date.now() > activationTokenExpire) {
+        return next(new ErrorHandler("Activation token has expired.", 400));
+    }
+
+    try {
+        // Verify activation token and extract user details from it
+        const decoded = jwt.verify(activationToken, process.env.JWT_SECRET);
+        const { user, activationCode: decodedCode } = decoded;
+
+        if (decodedCode !== activationCode) {
+            return next(new ErrorHandler("Invalid activation code.", 400));
+        }
+
+        // Proceed with user registration if token and code are valid
+        const hashedPassword = await bcrypt.hash(userDetails.password, 10);
+
+        const newUser = new User({
+            name: userDetails.name,
+            username: userDetails.username,
+            email: userDetails.email,
+            password: hashedPassword,
+            bio: userDetails.bio || null,
+            profilePic: userDetails.profilePicBuffer || null,  
+            profilePicMimeType: userDetails.profilePicMimetype || null,
+            interests: userDetails.interests,
+            isSeller: userDetails.isSeller || false,
+            storeName: userDetails.isSeller ? userDetails.storeName : null,
+            storeDescription: userDetails.isSeller ? userDetails.storeDescription : null,
+            storeImage: userDetails.isSeller ? userDetails.storeImageBuffer : null,
+            storeImageMimeType: userDetails.isSeller ? userDetails.storeImageMimetype : null
+        });
+
+        await newUser.save();
+
+        // Generate JWT token for the registered user
+        const token = generateToken(newUser);
+        res.cookie('token', token, { httpOnly: true, expires: new Date(Date.now() + 60 * 60 * 1000) });
+
+        // Clear session data
+        req.session.activationCode = null;
+        req.session.userDetails = null;
+        req.session.activationTokenExpire = null;
+
+        res.status(201).json({ token, message: "User registered successfully.", newUser });
+
+    } catch (error) {
+        return next(new ErrorHandler("Invalid or expired activation token.", 400));
+    }
 });
 
-// User Login
+
 exports.loginUser = catchAsyncErrors(async (req, res, next) => {
     const { email, password } = req.body;
 
