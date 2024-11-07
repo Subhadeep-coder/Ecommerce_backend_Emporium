@@ -14,6 +14,7 @@ const orderRouter = require("./src/routes/orderRoutes");
 const paymentRouter = require("./src/routes/paymentRoutes");
 const googleAuthRoutes = require("./src/routes/google-auth-Routes");
 const messageRoutes = require("./src/routes/messageRoutes");
+const MongoStore = require('connect-mongo');
 
 // Import database connection and Socket.IO setup
 const db = require("./src/config/mongoose-connection");
@@ -35,9 +36,13 @@ app.use(express.urlencoded({ extended: true }));
 
 // Express session
 app.use(expressSession({
+    secret: process.env.SECRET_KEY,
     resave: false,
     saveUninitialized: false,
-    secret: process.env.SECRET_KEY,
+    store: MongoStore.create({
+        mongoUrl: process.env.MONGODB_URI, // Your MongoDB connection URL
+        collectionName: 'sessions'
+    })
 }));
 
 // Setup Socket.IO with the existing function
