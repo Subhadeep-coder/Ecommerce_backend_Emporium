@@ -326,6 +326,20 @@ const commentOnProduct = catchAsyncErrors(async (req, res, next) => {
       sharesCount: product.shares.length
   });
 });
+const getAllComments = catchAsyncErrors(async (req, res, next) => {
+  const productId = req.params.id;
+
+  const product = await productModel.findById(productId);
+  if (!product) {
+      return next(new ErrorHandler("Product not found", 404));
+  }
+
+  res.status(200).json({
+      success: true,
+      comments: product.comments
+  });
+});
+
 
 const shareProduct = catchAsyncErrors(async (req, res, next) => {
   const productId = req.params.id;
@@ -520,5 +534,6 @@ module.exports = {
   unlikeProduct,
   uncommentOnProduct,
   unshareProduct,
+  getAllComments
   
 };

@@ -14,7 +14,8 @@ const {
   commentOnProduct, 
   shareProduct, 
   test,
-getProductsByStore
+getProductsByStore,
+getAllComments
 } = require('../controllers/productControllers');
 const { isAdmin, isSeller, isLoggedIn, isAdminOrSeller } = require('../middlewares/checkAuth');
 const upload = require("../config/multer-config");
@@ -40,5 +41,6 @@ router.post('/:id/like', isLoggedIn, likeProduct);  // Like a product
 router.post('/:id/comment', isLoggedIn, commentOnProduct);  // Comment on a product
 router.post('/:id/share', isLoggedIn, shareProduct);  // Share a product
 router.get("/store", getProductsByStore);  // Define the route for fetching products by store
+router.route('/product/:id/comments').get(isLoggedIn, getAllComments);
 
 module.exports = router;
