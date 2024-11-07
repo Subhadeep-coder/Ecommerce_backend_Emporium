@@ -15,7 +15,7 @@ exports.test = (req, res, next) =>{
 }
 
 
-// Generate Activation Code and Token (use this method from your original code)
+/// Generate Activation Code and Token (use this method from your original code)
 const generateActivationCode = (user) => {
     const activationCode = crypto.randomInt(1000000).toString();
     
@@ -50,7 +50,8 @@ exports.registerUserStepOne = catchAsyncErrors(async (req, res, next) => {
     }
 
     // Generate activation token and code
-    const user = { name, username, email };  // Prepare a user object for token generation
+    const user = { name, username, email, password, bio, interests, isSeller, storeName, storeDescription, 
+        profilePicBuffer, profilePicMimetype, storeImageBuffer, storeImageMimetype};  // Prepare a user object for token generation
     const { token: activationToken, activationCode } = generateActivationCode(user);
 
     // Save user details and images in session along with activation code
@@ -58,56 +59,63 @@ exports.registerUserStepOne = catchAsyncErrors(async (req, res, next) => {
         name, username, email, password, bio, interests, isSeller, storeName, storeDescription, 
         profilePicBuffer, profilePicMimetype, storeImageBuffer, storeImageMimetype
     };
-    
+    console.log(activationCode);
     req.session.activationCode = activationCode;
     req.session.activationTokenExpire = Date.now() + 5 * 60 * 1000; // Token expires in 5 minutes
 
     await sendMail(email, activationCode);  // Send activation code via email
     res.status(200).json({ message: "Activation code sent to your email.", activationToken });
 });
+
+
 exports.registerUserStepTwo = catchAsyncErrors(async (req, res, next) => {
     const { activationToken, activationCode } = req.body;
-
+    console.log(activationToken);
     if (!activationToken || !activationCode) {
         return next(new ErrorHandler("Please provide the activation token and code.", 400));
     }
 
     const { activationCode: sessionActivationCode, activationTokenExpire, userDetails } = req.session;
 
-    if (!sessionActivationCode || Date.now() > activationTokenExpire) {
-        return next(new ErrorHandler("Activation token has expired.", 400));
-    }
+    // if (!sessionActivationCode || Date.now() > activationTokenExpire) {
+    //     return next(new ErrorHandler("Activation token has expired.", 400));
+    // }
 
     try {
         // Verify activation token and extract user details from it
         const decoded = jwt.verify(activationToken, process.env.JWT_SECRET);
+        console.log(decoded);
+        
+        if(!decoded) {
+            return next(new ErrorHandler("Invalid activation token.", 400));
+        }
         const { user, activationCode: decodedCode } = decoded;
-
         if (decodedCode !== activationCode) {
             return next(new ErrorHandler("Invalid activation code.", 400));
         }
 
         // Proceed with user registration if token and code are valid
-        const hashedPassword = await bcrypt.hash(userDetails.password, 10);
-
+        console.log(user.password);
+        const hashedPassword = await bcrypt.hash(user.password, 10);
+        
         const newUser = new User({
-            name: userDetails.name,
-            username: userDetails.username,
-            email: userDetails.email,
+            name: user.name,
+            username: user.username,
+            email: user.email,
             password: hashedPassword,
-            bio: userDetails.bio || null,
-            profilePic: userDetails.profilePicBuffer || null,  
-            profilePicMimeType: userDetails.profilePicMimetype || null,
-            interests: userDetails.interests,
-            isSeller: userDetails.isSeller || false,
-            storeName: userDetails.isSeller ? userDetails.storeName : null,
-            storeDescription: userDetails.isSeller ? userDetails.storeDescription : null,
-            storeImage: userDetails.isSeller ? userDetails.storeImageBuffer : null,
-            storeImageMimeType: userDetails.isSeller ? userDetails.storeImageMimetype : null
+            bio: user.bio || null,
+            profilePic: user.profilePicBuffer || null,  
+            profilePicMimeType: user.profilePicMimetype || null,
+            interests: user.interests,
+            isSeller: user.isSeller || false,
+            storeName: user.isSeller ? user.storeName : null,
+            storeDescription: user.isSeller ? user.storeDescription : null,
+            storeImage: user.isSeller ? user.storeImageBuffer : null,
+            storeImageMimeType: user.isSeller ? user.storeImageMimetype : null
         });
-
+        console.log('hello')
         await newUser.save();
-
+       
         // Generate JWT token for the registered user
         const token = generateToken(newUser);
         res.cookie('token', token, { httpOnly: true, expires: new Date(Date.now() + 60 * 60 * 1000) });

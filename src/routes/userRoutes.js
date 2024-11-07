@@ -1,7 +1,8 @@
 const express = require('express');
 const {  loginUser, logoutUser, getUserProfile, updateProfile, test, passwordResetUser, otpVerifyUser, passwordUpdateUser, resendOtpUser, followSeller, unfollowSeller, getSellerProfile, getSellerFeed, getActivityFeed, getAllStores, registerUser, loginSeller, registerUserStepOne, registerUserStepTwo } = require('../controllers/userControllers'); // Import the user controller functions
 const upload = require("../config/multer-config");
-const { isLoggedIn } = require("../middlewares/checkAuth")
+const { isLoggedIn } = require("../middlewares/checkAuth");
+const { unlikeProduct, uncommentOnProduct, unshareProduct } = require('../controllers/productControllers');
 
 const router = express.Router();
 
@@ -27,7 +28,7 @@ router.get('/profile', isLoggedIn, getUserProfile);
 router.put('/update-profile',upload.fields([
     { name: "profilePic", maxCount: 1 },  // Upload single profile picture
     { name: "storeImage", maxCount: 1 }    // Upload single store image
-]), updateProfile);
+]),  isLoggedIn,updateProfile);
 
 // Test Route
 router.get('/', test);
@@ -60,5 +61,13 @@ router.get('/seller/:sellerId/feed', getSellerFeed);
 router.get('/activity-feed', isLoggedIn, getActivityFeed);
 router.get('/stores', isLoggedIn, getAllStores);
 router.post('/seller-login', loginSeller );
+
+// Route for unliking a product
+router.put('/product/:id/unlike', isLoggedIn, unlikeProduct);
+// Route for removing a comment from a product
+router.put('/product/:id/uncomment', isLoggedIn, uncommentOnProduct);
+// Route for unsharing a product
+router.put('/product/:id/unshare', isLoggedIn, unshareProduct);
+
 
 module.exports = router;

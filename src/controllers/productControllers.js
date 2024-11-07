@@ -375,6 +375,103 @@ const getSellerProducts = catchAsyncErrors(async (req, res, next) => {
   const products = await productModel.find({ user: req.user.id });
   res.status(200).json({ products });
 });
+
+
+
+
+
+const unlikeProduct = catchAsyncErrors(async (req, res, next) => {
+  const productId = req.params.id;
+  const userId = req.user.id;
+
+  const product = await productModel.findById(productId);
+  if (!product) {
+      return next(new ErrorHandler("Product not found", 404));
+  }
+
+  const productOwner = await User.findById(product.user);
+  if (!productOwner) {
+      return next(new ErrorHandler("User associated with this product not found", 404));
+  }
+
+  if (!product.likes.includes(userId)) {
+      return next(new ErrorHandler("You haven't liked this product yet", 400));
+  }
+
+  product.likes = product.likes.filter(id => id.toString() !== userId);
+  await product.save();
+
+  productOwner.activityFeed = productOwner.activityFeed.filter(activity => activity.type !== 'like' || activity.user.toString() !== userId);
+  await productOwner.save();
+
+  res.status(200).json({
+      message: "Product unliked successfully",
+      likesCount: product.likes.length,
+      commentsCount: product.comments.length,
+      sharesCount: product.shares.length
+  });
+});
+const uncommentOnProduct = catchAsyncErrors(async (req, res, next) => {
+  const productId = req.params.id;
+  const userId = req.user.id;
+  const { commentId } = req.body;  // Assuming the comment ID is passed in the request body
+
+  const product = await productModel.findById(productId);
+  if (!product) {
+      return next(new ErrorHandler("Product not found", 404));
+  }
+
+  const productOwner = await User.findById(product.user);
+  if (!productOwner) {
+      return next(new ErrorHandler("User associated with this product not found", 404));
+  }
+
+  const commentIndex = product.comments.findIndex(c => c._id.toString() === commentId && c.user.toString() === userId);
+  if (commentIndex === -1) {
+      return next(new ErrorHandler("Comment not found or you are not authorized to delete this comment", 404));
+  }
+
+  product.comments.splice(commentIndex, 1);
+  await product.save();
+
+  productOwner.activityFeed = productOwner.activityFeed.filter(activity => activity.type !== 'comment' || activity.user.toString() !== userId);
+  await productOwner.save();
+
+  res.status(200).json({
+      message: "Comment removed successfully",
+      likesCount: product.likes.length,
+      commentsCount: product.comments.length,
+      sharesCount: product.shares.length
+  });
+});const unshareProduct = catchAsyncErrors(async (req, res, next) => {
+  const productId = req.params.id;
+  const userId = req.user.id;
+
+  const product = await productModel.findById(productId).populate('user');
+  if (!product) {
+      return next(new ErrorHandler("Product not found", 404));
+  }
+
+  const shareIndex = product.shares.findIndex(share => share.user.toString() === userId);
+  if (shareIndex === -1) {
+      return next(new ErrorHandler("You haven't shared this product", 404));
+  }
+
+  product.shares.splice(shareIndex, 1);
+  await product.save();
+
+  product.user.activityFeed = product.user.activityFeed.filter(activity => activity.type !== 'share' || activity.user.toString() !== userId);
+  await product.user.save();
+
+  res.status(200).json({
+      message: "Product unshared successfully",
+      likesCount: product.likes.length,
+      commentsCount: product.comments.length,
+      sharesCount: product.shares.length
+  });
+});
+
+
 const getProductsByStore = catchAsyncErrors(async (req, res, next) => {
   const { storeName } = req.query;
   console.log(storeName);
@@ -419,6 +516,9 @@ module.exports = {
   commentOnProduct,
   shareProduct,
   getSellerProducts,
-  getProductsByStore
+  getProductsByStore,
+  unlikeProduct,
+  uncommentOnProduct,
+  unshareProduct,
   
 };
