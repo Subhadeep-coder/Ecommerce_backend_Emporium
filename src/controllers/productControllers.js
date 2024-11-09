@@ -125,7 +125,16 @@ const getAllProducts = catchAsyncErrors(async (req, res, next) => {
     products
   });
 });
+const getSingleProduct = catchAsyncErrors(async (req, res, next) => {
+  const product = await productModel.findById(req.params.id);
+  if (!product) return next(new ErrorHandler("Product not found", 404));
+  
+  // Increment views for popularity tracking
+  product.views = (product.views || 0) + 1;
+  await product.save();
 
+  res.status(200).json({ product });
+});
 // Add a product to the wishlist
 const addToWishlist = catchAsyncErrors(async (req, res, next) => {
   const userId = req.user.id;
