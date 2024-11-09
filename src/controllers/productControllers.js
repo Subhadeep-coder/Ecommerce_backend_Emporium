@@ -80,7 +80,6 @@ const createProduct = catchAsyncErrors(async (req, res, next) => {
 
   res.status(201).json({ message: "Product created successfully", product: newProduct });
 });
-
 const getAllProducts = catchAsyncErrors(async (req, res, next) => {
   const { search, category, minPrice, maxPrice, sortBy, page = 1, limit = 10 } = req.query;
   let query = {};
@@ -110,9 +109,12 @@ const getAllProducts = catchAsyncErrors(async (req, res, next) => {
   if (sortBy === 'price_asc') sort.price = 1;
   else if (sortBy === 'price_desc') sort.price = -1;
 
-  const products = await productModel.find(query).sort(sort)
-    .skip((page - 1) * limit) // Skipping documents for pagination
-    .limit(parseInt(limit)); // Limiting the results
+  // Fetch products and populate the seller's store name
+  const products = await productModel.find(query)
+    .sort(sort)
+    .skip((page - 1) * limit)
+    .limit(parseInt(limit))
+    .populate('user', 'storeName -_id'); // Populating only storeName and excluding _id
 
   const totalProducts = await productModel.countDocuments(query); // Total count for pagination
 
@@ -122,47 +124,6 @@ const getAllProducts = catchAsyncErrors(async (req, res, next) => {
     currentPage: page,
     products
   });
-});
-
-
-const getSingleProduct = catchAsyncErrors(async (req, res, next) => {
-  const product = await productModel.findById(req.params.id);
-  if (!product) return next(new ErrorHandler("Product not found", 404));
-  
-  // Increment views for popularity tracking
-  product.views = (product.views || 0) + 1;
-  await product.save();
-
-  res.status(200).json({ product });
-});
-
-const updateProduct = catchAsyncErrors(async (req, res, next) => {
-  const product = await productModel.findById(req.params.id);
-  if (!product || product.user.toString() !== req.user.id) {
-    return next(new ErrorHandler("Unauthorized or product not found", 403));
-  }
-
-  const { title, images, description, price, category, inventory } = req.body;
-  if (title) product.title = title;
-  if (images) product.images = images;
-  if (description) product.description = description;
-  if (price) product.price = price;
-  if (category) product.category = category;
-  if (inventory) product.inventory = inventory;
-
-  await product.save();
-  res.status(200).json({ message: "Product updated successfully", product });
-});
-
-// Delete Product
-const deleteProduct = catchAsyncErrors(async (req, res, next) => {
-  const product = await productModel.findById(req.params.id);
-  if (!product || product.user.toString() !== req.user.id) {
-    return next(new ErrorHandler("Unauthorized or product not found", 403));
-  }
-
-  await product.remove();
-  res.status(200).json({ message: "Product deleted successfully" });
 });
 
 // Add a product to the wishlist
