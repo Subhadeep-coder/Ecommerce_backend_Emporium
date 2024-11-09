@@ -135,6 +135,36 @@ const getSingleProduct = catchAsyncErrors(async (req, res, next) => {
 
   res.status(200).json({ product });
 });
+const updateProduct = catchAsyncErrors(async (req, res, next) => {
+  const product = await productModel.findById(req.params.id);
+  if (!product || product.user.toString() !== req.user.id) {
+    return next(new ErrorHandler("Unauthorized or product not found", 403));
+  }
+
+  const { title, images, description, price, category, inventory } = req.body;
+  if (title) product.title = title;
+  if (images) product.images = images;
+  if (description) product.description = description;
+  if (price) product.price = price;
+  if (category) product.category = category;
+  if (inventory) product.inventory = inventory;
+
+  await product.save();
+  res.status(200).json({ message: "Product updated successfully", product });
+});
+
+// Delete Product
+const deleteProduct = catchAsyncErrors(async (req, res, next) => {
+  const product = await productModel.findById(req.params.id);
+  if (!product || product.user.toString() !== req.user.id) {
+    return next(new ErrorHandler("Unauthorized or product not found", 403));
+  }
+
+  await product.remove();
+  res.status(200).json({ message: "Product deleted successfully" });
+});
+
+
 // Add a product to the wishlist
 const addToWishlist = catchAsyncErrors(async (req, res, next) => {
   const userId = req.user.id;
