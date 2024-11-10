@@ -201,7 +201,13 @@ const addToWishlist = catchAsyncErrors(async (req, res, next) => {
 const getWishlist = catchAsyncErrors(async (req, res, next) => {
   const userId = req.user.id;
 
-  const user = await User.findById(userId).populate("wishlist");
+  const user = await User.findById(userId).populate({
+    path: "wishlist",
+    populate: {
+      path: "user", // Assuming 'user' is the reference to the seller in the product model
+      select: "storeName -_id" // Populating only the storeName
+    }
+  });
 
   if (!user) {
     return next(new ErrorHandler("User not found", 404));
@@ -212,6 +218,7 @@ const getWishlist = catchAsyncErrors(async (req, res, next) => {
     wishlist: user.wishlist,
   });
 });
+
 
 const removeFromWishlist = catchAsyncErrors(async (req, res, next) => {
   const userId = req.user.id;
