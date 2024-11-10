@@ -13,20 +13,18 @@ exports.test = (req, res, next) =>{
     res.json({ message: 'hello user' });
 
 }
-
-
-/// Generate Activation Code and Token (use this method from your original code)
 const generateActivationCode = (user) => {
     const activationCode = crypto.randomInt(1000000).toString();
     
     const token = jwt.sign(
         { user, activationCode },
         process.env.JWT_SECRET,  // Ensure this is set in your environment variables
-        { expiresIn: "5m" }      // Token expires in 5 minutes
+        { expiresIn: "1d" }      // Token expires in 1 day
     );
     return { token, activationCode };
 };
 
+// Step 1: Register User and Send Activation Code
 exports.registerUserStepOne = catchAsyncErrors(async (req, res, next) => {
     const { name, username, email, password, bio, interests, isSeller, storeName, storeDescription } = req.body;
     
@@ -59,43 +57,42 @@ exports.registerUserStepOne = catchAsyncErrors(async (req, res, next) => {
         name, username, email, password, bio, interests, isSeller, storeName, storeDescription, 
         profilePicBuffer, profilePicMimetype, storeImageBuffer, storeImageMimetype
     };
-    console.log(activationCode);
     req.session.activationCode = activationCode;
-    req.session.activationTokenExpire = Date.now() + 5 * 60 * 1000; // Token expires in 5 minutes
+    req.session.activationTokenExpire = Date.now() + 24 * 60 * 60 * 1000; // Token expires in 1 day
 
     await sendMail(email, activationCode);  // Send activation code via email
     res.status(200).json({ message: "Activation code sent to your email.", activationToken });
 });
 
-
+// Step 2: Confirm Registration Using Activation Token
 exports.registerUserStepTwo = catchAsyncErrors(async (req, res, next) => {
     const { activationToken, activationCode } = req.body;
-    console.log(activationToken);
+
     if (!activationToken || !activationCode) {
         return next(new ErrorHandler("Please provide the activation token and code.", 400));
     }
 
     const { activationCode: sessionActivationCode, activationTokenExpire, userDetails } = req.session;
 
-    // if (!sessionActivationCode || Date.now() > activationTokenExpire) {
-    //     return next(new ErrorHandler("Activation token has expired.", 400));
-    // }
+    if (!sessionActivationCode || Date.now() > activationTokenExpire) {
+        return next(new ErrorHandler("Activation token has expired.", 400));
+    }
 
     try {
         // Verify activation token and extract user details from it
         const decoded = jwt.verify(activationToken, process.env.JWT_SECRET);
-        console.log(decoded);
         
-        if(!decoded) {
+        if (!decoded) {
             return next(new ErrorHandler("Invalid activation token.", 400));
         }
+        
         const { user, activationCode: decodedCode } = decoded;
+        
         if (decodedCode !== activationCode) {
             return next(new ErrorHandler("Invalid activation code.", 400));
         }
 
         // Proceed with user registration if token and code are valid
-        console.log(user.password);
         const hashedPassword = await bcrypt.hash(user.password, 10);
         
         const newUser = new User({
@@ -113,9 +110,9 @@ exports.registerUserStepTwo = catchAsyncErrors(async (req, res, next) => {
             storeImage: user.isSeller ? user.storeImageBuffer : null,
             storeImageMimeType: user.isSeller ? user.storeImageMimetype : null
         });
-        console.log('hello')
+
         await newUser.save();
-       
+        
         // Generate JWT token for the registered user
         const token = generateToken(newUser);
         res.cookie('token', token, { httpOnly: true, expires: new Date(Date.now() + 60 * 60 * 1000) });
@@ -131,7 +128,6 @@ exports.registerUserStepTwo = catchAsyncErrors(async (req, res, next) => {
         return next(new ErrorHandler("Invalid or expired activation token.", 400));
     }
 });
-
 
 exports.loginUser = catchAsyncErrors(async (req, res, next) => {
     const { email, password } = req.body;
