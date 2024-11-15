@@ -17,7 +17,7 @@ const { OAuth2Client } = require('google-auth-library');
 
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
-// Controller to verify the Google ID token and save user data
+// Controller to verify Google token and save user data
 exports.verifyGoogleToken = async (req, res) => {
     const { idToken } = req.body;
 
@@ -29,27 +29,31 @@ exports.verifyGoogleToken = async (req, res) => {
         });
 
         const payload = ticket.getPayload();
-        const userId = payload['sub'];  // Google's user ID
+        const googleId = payload['sub'];  // Google's user ID
         const email = payload['email'];
         const name = payload['name'];
+        const profileImage = payload['picture'];  // Google profile image
+        const bio = payload['bio'] || '';  // Optional: User bio
 
         // Check if user already exists in the database
-        let user = await User.findOne({ googleId: userId });
+        let user = await User.findOne({ googleId });
 
         if (!user) {
             // If user doesn't exist, create a new user
             user = new User({
-                googleId: userId,
+                googleId: googleId,
                 email: email,
                 name: name,
-                profileImage: payload.picture, // Optional: Save user's profile picture
+                profilePic: profileImage,
+                bio: bio,
+                // You can set default values for other fields, like interests or isSeller
             });
 
             await user.save(); // Save the user to the database
         }
 
         // Generate a JWT for your app
-        const token = jwt.sign({ userId, email, name }, process.env.JWT_SECRET, { expiresIn: '1h' });
+        const token = jwt.sign({ googleId, email, name }, process.env.JWT_SECRET, { expiresIn: '1h' });
 
         // Send the JWT token back to the Android app along with user info
         res.json({
@@ -58,7 +62,11 @@ exports.verifyGoogleToken = async (req, res) => {
                 id: user._id,
                 email: user.email,
                 name: user.name,
-                profileImage: user.profileImage,
+                profileImage: user.profilePic,
+                bio: user.bio,
+                isSeller: user.isSeller,
+                storeName: user.storeName,
+                storeDescription: user.storeDescription
             }
         });
 
@@ -67,6 +75,7 @@ exports.verifyGoogleToken = async (req, res) => {
         res.status(401).json({ message: 'Invalid ID token' });
     }
 };
+
 
 
 
