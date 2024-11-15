@@ -13,6 +13,63 @@ exports.test = (req, res, next) =>{
     res.json({ message: 'hello user' });
 
 }
+const { OAuth2Client } = require('google-auth-library');
+
+const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+
+// Controller to verify the Google ID token and save user data
+exports.verifyGoogleToken = async (req, res) => {
+    const { idToken } = req.body;
+
+    try {
+        // Verify the ID token from Google
+        const ticket = await client.verifyIdToken({
+            idToken: idToken,
+            audience: process.env.GOOGLE_CLIENT_ID,  // Ensure this matches your client ID
+        });
+
+        const payload = ticket.getPayload();
+        const userId = payload['sub'];  // Google's user ID
+        const email = payload['email'];
+        const name = payload['name'];
+
+        // Check if user already exists in the database
+        let user = await User.findOne({ googleId: userId });
+
+        if (!user) {
+            // If user doesn't exist, create a new user
+            user = new User({
+                googleId: userId,
+                email: email,
+                name: name,
+                profileImage: payload.picture, // Optional: Save user's profile picture
+            });
+
+            await user.save(); // Save the user to the database
+        }
+
+        // Generate a JWT for your app
+        const token = jwt.sign({ userId, email, name }, process.env.JWT_SECRET, { expiresIn: '1h' });
+
+        // Send the JWT token back to the Android app along with user info
+        res.json({
+            token,
+            user: {
+                id: user._id,
+                email: user.email,
+                name: user.name,
+                profileImage: user.profileImage,
+            }
+        });
+
+    } catch (error) {
+        console.error('Error verifying ID token:', error);
+        res.status(401).json({ message: 'Invalid ID token' });
+    }
+};
+
+
+
 const generateActivationCode = (user) => {
     const activationCode = crypto.randomInt(1000000).toString();
     
