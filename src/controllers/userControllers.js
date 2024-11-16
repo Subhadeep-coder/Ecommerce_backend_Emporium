@@ -33,16 +33,20 @@ exports.verifyGoogleToken = async (req, res) => {
 
         let user = await User.findOne({ googleId });
 
+        let isNewUser = false;
+
         if (!user) {
             user = new User({
                 googleId,
                 email,
                 name,
                 profilePic: profileImage,
+                username: email.split('@')[0],
                 // Other user fields if required
             });
 
             await user.save();
+            isNewUser = true;
         }
 
         // Generate a JWT token (matching your other routes)
@@ -50,9 +54,11 @@ exports.verifyGoogleToken = async (req, res) => {
 
         res.json({
             token,
+            isNewUser,
             user: {
                 id: user._id,
                 email: user.email,
+                username: user.username,
                 name: user.name,
                 profileImage: user.profilePic,
                 isSeller: user.isSeller,
@@ -460,7 +466,7 @@ exports.unfollowSeller = catchAsyncErrors(async (req, res, next) => {
 
     
     const io = req.app.get('socketio');
-    await sendNotification(seller._id, `${req.user.id} unfollowed you.`, 'unfollow', userId, null, io);
+    await sendNotification(seller._id,` ${req.user.id} unfollowed you.`, 'unfollow', userId, null, io);
     
 
     res.status(200).json({ message: "Seller unfollowed successfully." });
@@ -552,6 +558,3 @@ exports.getAllStores = async (req, res) => {
         });
     }
 };
-
-
-
