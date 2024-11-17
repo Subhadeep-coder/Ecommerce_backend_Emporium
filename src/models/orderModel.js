@@ -35,6 +35,21 @@ const orderSchema = new Schema({
   carrier: {
     type: String,
   },
+  paymentMethod: {
+    type: String,
+    enum: ['COD', 'PayPal', 'Stripe'], // Add more methods as necessary
+    default: 'COD', // Default is Cash on Delivery (COD)
+  },
+  paymentStatus: {
+    type: String,
+    enum: ['pending', 'completed', 'failed'],
+    default: 'pending', // Default is 'pending' for COD
+  },
+  deliveryStatus: {
+    type: String,
+    enum: ['pending', 'shipped', 'delivered'],
+    default: 'pending', // Default is 'pending'
+  },
 }, { timestamps: true });
 
 const Order = mongoose.model('order', orderSchema);

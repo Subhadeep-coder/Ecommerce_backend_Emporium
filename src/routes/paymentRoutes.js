@@ -1,19 +1,16 @@
 const express = require('express');
-const { createOrder, verifyPayment, getAllPayments, getPaymentById } = require('../controllers/paymentControllers');
+const { createPayPalOrder, executePayPalPayment, cancelPayPalPayment } = require('../controllers/paymentControllers');
 const { isLoggedIn } = require('../middlewares/checkAuth');
 
 const router = express.Router();
 
-// Route to create an order
-router.post('/create/orderId', isLoggedIn, createOrder);
+// Route to create PayPal order
+router.post('/create/paypal', isLoggedIn, createPayPalOrder);
 
-// Route to verify the payment
-router.post('/verify', isLoggedIn, verifyPayment);
+// Route for success callback from PayPal
+router.get('/success', isLoggedIn, executePayPalPayment);
 
-// Route to get all payments
-router.get('/all', getAllPayments);
-
-// Route to get payment by ID
-router.get('/:id', getPaymentById);
+// Route for cancel callback from PayPal
+router.get('/cancel', cancelPayPalPayment);
 
 module.exports = router;

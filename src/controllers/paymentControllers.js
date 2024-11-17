@@ -4,153 +4,114 @@ const Payment = require('../models/paymentModel.js');
 const Cart = require("../models/cartModel.js");
 const { catchAsyncErrors } = require("../middlewares/catchAsyncError");
 const ErrorHandler = require("../utils/ErrorHandler");
+const paypal = require('paypal-rest-sdk');
 
-// Configure Razorpay instance
-const razorpay = new Razorpay({
-  key_id: process.env.RAZORPAY_KEY_ID,
-  key_secret: process.env.RAZORPAY_KEY_SECRET,
+// Configure PayPal
+paypal.configure({
+  'mode': 'sandbox', // Or 'live'
+  'client_id': process.env.PAYPAL_CLIENT_ID,
+  'client_secret': process.env.PAYPAL_CLIENT_SECRET,
 });
 
-// Create Order
-const createOrder = catchAsyncErrors(async (req, res, next) => {
-  const userId = req.user.id;
+// Create PayPal Order
+const createPayPalOrder = async (req, res, next) => {
+  try {
+    const userId = req.user.id; // Assuming user is authenticated
+    const existingPayment = await Payment.findOne({ userId, status: 'pending' });
 
-  // Check if there's an existing pending payment for this user
-  const existingPayment = await Payment.findOne({ userId, status: 'pending' });
-  if (existingPayment) {
-    return next(new ErrorHandler('A pending payment already exists. Please complete or cancel it before creating a new one.', 400));
+    if (existingPayment) {
+      return res.status(400).json({ message: 'Pending payment already exists. Complete or cancel it before creating a new one.' });
+    }
+
+    const cart = await Cart.findOne({ userId }).populate('products.productId');
+    if (!cart || cart.products.length === 0) {
+      return res.status(400).json({ message: 'Cart is empty' });
+    }
+
+    let totalAmount = cart.products.reduce((sum, item) => sum + item.productId.price * item.quantity, 0);
+
+    const create_payment_json = {
+      intent: "sale",
+      payer: { payment_method: "paypal" },
+      redirect_urls: {
+        return_url: "http://localhost:3000/paypal/success",
+        cancel_url: "http://localhost:3000/paypal/cancel",
+      },
+      transactions: [{
+        item_list: {
+          items: cart.products.map((item) => ({
+            name: item.productId.name,
+            sku: item.productId.sku || '001',
+            price: item.productId.price.toFixed(2),
+            currency: 'USD', // Adjust currency accordingly
+            quantity: item.quantity
+          }))
+        },
+        amount: {
+          currency: 'USD',
+          total: totalAmount.toFixed(2),
+        },
+        description: "Purchase from your cart."
+      }]
+    };
+
+    paypal.payment.create(create_payment_json, async (error, payment) => {
+      if (error) {
+        throw error;
+      } else {
+        const newPayment = await Payment.create({
+          userId,
+          paymentId: payment.id,
+          amount: totalAmount,
+          currency: 'USD',
+          status: 'pending',
+        });
+
+        // Redirect user to PayPal approval URL
+        for (let i = 0; i < payment.links.length; i++) {
+          if (payment.links[i].rel === 'approval_url') {
+            return res.redirect(payment.links[i].href);
+          }
+        }
+      }
+    });
+  } catch (err) {
+    next(err);
   }
+};
 
-  // Find the user's cart by userId
-  const cart = await Cart.findOne({ userId }).populate('products.productId');
-  if (!cart || cart.products.length === 0) {
-    return next(new ErrorHandler('Cart is empty', 400));
-  }
+// Verify PayPal Payment
+const executePayPalPayment = async (req, res, next) => {
+  const { paymentId, PayerID } = req.query;
 
-  // Calculate total amount of products in the cart
-  let totalAmount = cart.products.reduce((sum, item) => sum + item.productId.price * item.quantity, 0);
-
-  // Convert totalAmount to paise (smallest currency unit for INR)
-  const amountInPaise = Math.round(totalAmount * 100);
-
-  // Create Razorpay order
-  const options = {
-    amount: amountInPaise,
-    currency: "INR",
-    receipt: `order_${Date.now()}`,
-    payment_capture: 1,
+  const execute_payment_json = {
+    payer_id: PayerID,
+    transactions: [{ amount: { currency: 'USD', total: '25.00' } }] // Use dynamic amount here
   };
 
-  const order = await razorpay.orders.create(options);
+  paypal.payment.execute(paymentId, execute_payment_json, async (error, payment) => {
+    if (error) {
+      return res.status(500).json({ message: 'Payment failed', error });
+    } else {
+      const paymentRecord = await Payment.findOne({ paymentId });
 
-  // Save the order details in the Payment model
-  const newPayment = await Payment.create({
-    userId,
-    orderId: order.id,
-    amount: order.amount,
-    currency: order.currency,
-    status: 'pending',
+      if (!paymentRecord) {
+        return res.status(404).json({ message: 'Payment record not found' });
+      }
+
+      paymentRecord.status = 'completed';
+      await paymentRecord.save();
+
+      return res.status(200).json({ success: true, message: 'Payment successful' });
+    }
   });
+};
 
-  res.status(200).json({
-    success: true,
-    order,
-    paymentId: newPayment._id
-  });
-});
+// Cancel PayPal Payment
+const cancelPayPalPayment = (req, res) => {
+  res.status(200).json({ success: true, message: 'Payment cancelled' });
+};
 
-// Verify Payment
-// Verify Payment 
-const verifyPayment = catchAsyncErrors(async (req, res, next) => {
-  const { razorpayOrderId, razorpayPaymentId, razorpaySignature } = req.body;
-  console.log(req.body);
-  
-  
-  // Check if all required fields are provided
-  if (!razorpayOrderId || !razorpayPaymentId || !razorpaySignature) {
-    return next(new ErrorHandler('Missing required payment verification data', 400));
-  }
-
-  const secret = process.env.RAZORPAY_KEY_SECRET;
-  console.log(secret);
-  
-  const { validatePaymentVerification } = require('razorpay/dist/utils/razorpay-utils');
-
-  const isValid = validatePaymentVerification(
-    { "order_id": razorpayOrderId, "payment_id": razorpayPaymentId },
-    razorpaySignature,
-    secret
-  );
-
-  if (!isValid) {
-    return next(new ErrorHandler('Invalid signature', 400));
-  }
-
-  // Find the payment by orderId
-  const payment = await Payment.findOne({ orderId: razorpayOrderId });
-  if (!payment) {
-    return next(new ErrorHandler('Payment not found', 404));
-  }
-
-  // Update payment status to 'completed'
-  payment.paymentId = razorpayPaymentId;
-  payment.signature = razorpaySignature;
-  payment.status = 'completed';
-  await payment.save();
-
-  res.status(200).json({
-    success: true,
-    message: 'Payment verified successfully',
-    orderId: razorpayOrderId
-  });
-});
+module.exports = { createPayPalOrder, executePayPalPayment, cancelPayPalPayment };
 
 
-// Cancel Payment
-const cancelPayment = catchAsyncErrors(async (req, res, next) => {
-  const { paymentId } = req.params;
-
-  // Find the payment by paymentId
-  const payment = await Payment.findById(paymentId);
-  if (!payment) {
-    return next(new ErrorHandler('Payment not found', 404));
-  }
-
-  // Only pending payments can be cancelled
-  if (payment.status !== 'pending') {
-    return next(new ErrorHandler('Only pending payments can be cancelled', 400));
-  }
-
-  // Update payment status to 'cancelled'
-  payment.status = 'cancelled';
-  await payment.save();
-
-  res.status(200).json({
-    success: true,
-    message: 'Payment cancelled successfully',
-    payment
-  });
-});
-
-// Get all payments
-const getAllPayments = catchAsyncErrors(async (req, res, next) => {
-  const payments = await Payment.find();
-  res.status(200).json({
-    success: true,
-    payments
-  });
-});
-
-// Get payment by ID
-const getPaymentById = catchAsyncErrors(async (req, res, next) => {
-  const payment = await Payment.findById(req.params.id);
-  if (!payment) {
-    return next(new ErrorHandler('Payment not found', 404));
-  }
-  res.status(200).json({
-    success: true,
-    payment
-  });
-});
-
-module.exports = { createOrder, verifyPayment, getAllPayments, getPaymentById, cancelPayment };
