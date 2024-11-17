@@ -22,7 +22,7 @@ exports.verifyGoogleToken = async (req, res) => {
     try {
         const ticket = await client.verifyIdToken({
             idToken: idToken,
-            audience: process.env.GOOGLE_CLIENT_ID,
+            audience: process.env.GOOGLE_CLIENT_IDPHONE,
         });
 
         const payload = ticket.getPayload();
