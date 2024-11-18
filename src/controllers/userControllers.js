@@ -137,8 +137,12 @@ exports.registerUserStepTwo = catchAsyncErrors(async (req, res, next) => {
     }
 
     const { activationCode: sessionActivationCode, activationTokenExpire, userDetails } = req.session;
+    console.log(activationCode)
 
-    if (!sessionActivationCode || Date.now() > activationTokenExpire) {
+    // if (!sessionActivationCode || Date.now() > activationTokenExpire) {
+    //     return next(new ErrorHandler("Activation token has expired.", 400));
+    // }
+    if (Date.now() > activationTokenExpire) {
         return next(new ErrorHandler("Activation token has expired.", 400));
     }
 
