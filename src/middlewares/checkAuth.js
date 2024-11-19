@@ -7,7 +7,9 @@ const isLoggedIn = (req, res, next) => {
     const token = req.cookies.token || req.header('Authorization')?.replace('Bearer ', '');
 
     if (!token) {
-        return res.status(401).json({ message: 'Access denied. No token provided.' });
+        return res.status(401).json({ 
+            message: 'Access denied. You need to log in to perform this action.' // Clear message when no token is provided
+        });
     }
 
     try {
