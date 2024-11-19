@@ -15,6 +15,7 @@ const cashRouter = require("./src/routes/cashondeliveryRoutes");
 const paymentRouter = require("./src/routes/paymentRoutes");
 const googleAuthRoutes = require("./src/routes/google-auth-Routes");
 const messageRoutes = require("./src/routes/messageRoutes");
+const addressRoutes = require("./src/routes/addressRoutes");
 const MongoStore = require('connect-mongo');
 
 // Import database connection and Socket.IO setup
@@ -79,6 +80,7 @@ app.use("/payment", paymentRouter);
 app.use("/auth", googleAuthRoutes);
 app.use("/meesages", messageRoutes);
 app.use("/cash", cashRouter);
+app.use("/address", addressRoutes);
 
 // Server listens on the specified port
 const PORT = process.env.PORT || 3000;
