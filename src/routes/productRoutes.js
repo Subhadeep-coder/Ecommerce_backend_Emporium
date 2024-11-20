@@ -29,7 +29,7 @@ router.post('/:id', isLoggedIn, getSingleProduct);
 // Other routes
 router.get('/all', getAllProducts);
 router.get('/', test);
-router.get('/seller-products', isLoggedIn, isAdminOrSeller,  getSellerProducts);
+router.get('/seller-products',  getSellerProducts);
 
 // Wishlist routes (authenticated users only)
 router.post('/wishlist/add', isLoggedIn, addToWishlist);

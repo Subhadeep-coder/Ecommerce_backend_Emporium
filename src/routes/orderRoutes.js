@@ -9,5 +9,8 @@ router.get('/userOrder',isLoggedIn, orderController.getOrders);
 // New route for completing purchase
 router.post('/complete-purchase',isLoggedIn, orderController.completePurchase);
 router.get('/', orderController.test);
+router.get('/user-order/:id', isLoggedIn, orderController.getSingleOrder);
+
+
 
 module.exports = router;

@@ -61,6 +61,28 @@ exports.completePurchase = catchAsyncErrors(async (req, res, next) => {
   }
 });
 
+// Get a single order for a user
+exports.getSingleOrder = catchAsyncErrors(async (req, res, next) => {
+  try {
+    const userId = req.user.id; // Assuming req.user is populated after authentication
+    const orderId = req.params.id; // Fetch order ID from URL params
+
+    // Find the specific order for the user
+    const order = await Order.findOne({ _id: orderId, userId }).populate("products.productId");
+
+    if (!order) {
+      return next(new ErrorHandler("Order not found", 404));
+    }
+
+    res.status(200).json({
+      success: true,
+      order,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 
 
 // Test route for verification

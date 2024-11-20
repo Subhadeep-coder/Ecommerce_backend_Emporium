@@ -13,6 +13,33 @@ exports.test = (req, res, next) =>{
     res.json({ message: 'hello user' });
 
 }
+
+// Get products by storeName (for a seller)
+exports.getProductsByStore = catchAsyncErrors(async (req, res, next) => {
+    const { storeName } = req.params; // Store Name ko request parameters se lein
+
+    if (!storeName) {
+        return next(new ErrorHandler("Store Name is required.", 400));
+    }
+
+    // Find the user based on storeName (assuming storeName is unique)
+    const user = await User.findOne({ storeName });
+
+    if (!user) {
+        return next(new ErrorHandler("Store not found.", 404));
+    }
+
+    // Find all products related to the store (you should have storeId in Product model)
+    const products = await Product.find({
+        storeName: storeName // Product model mein storeName ya storeId hona chahiye
+    });
+
+    res.status(200).json({
+        message: "Products fetched successfully.",
+        storeName,
+        products // Store ke products
+    });
+});
 const { OAuth2Client } = require('google-auth-library');
 
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
@@ -106,7 +133,7 @@ exports.registerUserStepOne = catchAsyncErrors(async (req, res, next) => {
         return next(new ErrorHandler("User already registered with this email.", 400));
     }
 
-    const existingUsernameUser = await User.findOne({ username });
+    const existingUsernameUser = await User.findOne({ username });   
     if (existingUsernameUser) {
         return next(new ErrorHandler("Username is already taken.", 400));
     }
@@ -560,5 +587,40 @@ exports.getAllStores = async (req, res) => {
             success: false,
             message: 'Internal Server Error',
         });
+    }
+};
+exports.searchStore = async (req, res, next) => {
+    const { storeName } = req.query; // Client se store name le rahe hain
+    
+    if (!storeName) {
+        return res.status(400).json({ message: "Store name is required for searching." });
+    }
+
+    try {
+        const stores = await Store.aggregate([
+            {
+                $match: {
+                    storeName: { $regex: storeName, $options: "i" } // Case-insensitive search
+                }
+            },
+            {
+                $project: {
+                    _id: 1,
+                    storeName: 1,
+                    location: 1,
+                    rating: 1,
+                    categories: 1
+                }
+            }
+        ]);
+
+        if (stores.length === 0) {
+            return res.status(404).json({ message: "No stores found matching your search." });
+        }
+
+        res.status(200).json({ message: "Stores fetched successfully.", stores });
+    } catch (error) {
+        console.error("Error in searching stores:", error);
+        next(new ErrorHandler("Something went wrong while searching for stores.", 500));
     }
 };
