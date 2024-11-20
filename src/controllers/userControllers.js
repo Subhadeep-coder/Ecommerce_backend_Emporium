@@ -589,27 +589,32 @@ exports.getAllStores = async (req, res) => {
         });
     }
 };
-exports.searchStore = async (req, res, next) => {
-    const { storeName } = req.query; // Client se store name le rahe hain
-    
+
+exports.searchStore = catchAsyncErrors(async (req, res, next) => {
+    const { storeName } = req.query; // Get the store name from query parameters
+
     if (!storeName) {
         return res.status(400).json({ message: "Store name is required for searching." });
     }
 
     try {
-        const stores = await Store.aggregate([
+        // Search for sellers with a matching store name
+        const stores = await User.aggregate([
             {
                 $match: {
-                    storeName: { $regex: storeName, $options: "i" } // Case-insensitive search
+                    isSeller: true, // Ensure user is a seller
+                    storeName: { $regex: storeName, $options: "i" } // Case-insensitive storeName search
                 }
             },
             {
                 $project: {
                     _id: 1,
                     storeName: 1,
-                    location: 1,
-                    rating: 1,
-                    categories: 1
+                    storeDescription: 1,
+                    profilePic: 1,
+                    location: 1, // Add location if it's part of your schema in the future
+                    rating: 1,   // Add rating if applicable
+                    followers: { $size: "$followers" } // Count of followers
                 }
             }
         ]);
@@ -618,9 +623,13 @@ exports.searchStore = async (req, res, next) => {
             return res.status(404).json({ message: "No stores found matching your search." });
         }
 
-        res.status(200).json({ message: "Stores fetched successfully.", stores });
+        res.status(200).json({
+            message: "Stores fetched successfully.",
+            stores
+        });
     } catch (error) {
         console.error("Error in searching stores:", error);
         next(new ErrorHandler("Something went wrong while searching for stores.", 500));
     }
-};
+});
+
