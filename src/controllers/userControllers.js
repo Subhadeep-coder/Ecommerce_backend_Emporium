@@ -30,7 +30,7 @@ exports.getProductsByStore = catchAsyncErrors(async (req, res, next) => {
     }
 
     // Find all products related to the store (you should have storeId in Product model)
-    const products = await Product.find({
+    const products = await productModel.find({
         storeName: storeName // Product model mein storeName ya storeId hona chahiye
     });
 
