@@ -59,7 +59,7 @@ router.get('/seller/:sellerId/feed', getSellerFeed);
 
 // Activity Feed
 router.get('/activity-feed', isLoggedIn, getActivityFeed);
-router.get('/stores', isLoggedIn, getAllStores);
+router.get('/stores',  getAllStores);
 router.post('/seller-login', loginSeller );
 
 // Route for unliking a product
