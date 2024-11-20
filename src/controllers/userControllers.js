@@ -624,8 +624,8 @@ exports.searchStore = catchAsyncErrors(async (req, res, next) => {
         }
 
         res.status(200).json({
-            message: "Stores fetched successfully.",
-            stores
+           success: true,
+            data :stores
         });
     } catch (error) {
         console.error("Error in searching stores:", error);
