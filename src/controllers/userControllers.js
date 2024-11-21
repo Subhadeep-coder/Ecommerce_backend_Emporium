@@ -599,25 +599,9 @@ exports.searchStore = catchAsyncErrors(async (req, res, next) => {
 
     try {
         // Search for sellers with a matching store name
-        const stores = await User.aggregate([
-            {
-                $match: {
-                    isSeller: true, // Ensure user is a seller
-                    storeName: { $regex: storeName, $options: "i" } // Case-insensitive storeName search
-                }
-            },
-            {
-                $project: {
-                    _id: 1,
-                    storeName: 1,
-                    storeDescription: 1,
-                    profilePic: 1,
-                    location: 1, // Add location if it's part of your schema in the future
-                    rating: 1,   // Add rating if applicable
-                    followers: { $size: "$followers" } // Count of followers
-                }
-            }
-        ]);
+        const stores = await User.findById(
+            { isSeller: true,storeName: { $regex: storeName, $options: "i" }} ,'storeName storeImage'               
+            );
 
         if (stores.length === 0) {
             return res.status(404).json({ message: "No stores found matching your search." });
