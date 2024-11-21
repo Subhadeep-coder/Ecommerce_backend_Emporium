@@ -4,7 +4,7 @@ const {productModel, productValidation } = require('../models/productModel'); //
 const Notification  = require('../models/notification-Model'); // Import the Product model and validation
 const { catchAsyncErrors } = require("../middlewares/catchAsyncError");
 const ErrorHandler = require("../utils/ErrorHandler");
-const { generateToken } = require("../utils/SendToken");  
+const { refreshToken, accessToken } = require("../utils/SendToken");  
 const sendMail = require("../utils/nodemailer")
 const crypto = require("crypto")
 const jwt = require('jsonwebtoken');
@@ -154,7 +154,6 @@ exports.registerUserStepOne = catchAsyncErrors(async (req, res, next) => {
     await sendMail(email, activationCode);  // Send activation code via email
     res.status(200).json({ message: "Activation code sent to your email.", activationToken });
 });
-
 // Step 2: Confirm Registration Using Activation Token
 exports.registerUserStepTwo = catchAsyncErrors(async (req, res, next) => {
     const { activationToken, activationCode } = req.body;
@@ -163,67 +162,99 @@ exports.registerUserStepTwo = catchAsyncErrors(async (req, res, next) => {
         return next(new ErrorHandler("Please provide the activation token and code.", 400));
     }
 
+    // Retrieve session data
     const { activationCode: sessionActivationCode, activationTokenExpire, userDetails } = req.session;
-    console.log(activationCode)
 
-    // if (!sessionActivationCode || Date.now() > activationTokenExpire) {
-    //     return next(new ErrorHandler("Activation token has expired.", 400));
-    // }
-    if (Date.now() > activationTokenExpire) {
+    if (!sessionActivationCode || Date.now() > activationTokenExpire) {
         return next(new ErrorHandler("Activation token has expired.", 400));
     }
 
     try {
-        // Verify activation token and extract user details from it
+        // Verify the activation token
         const decoded = jwt.verify(activationToken, process.env.JWT_SECRET);
-        
-        if (!decoded) {
+        if (!decoded || !userDetails) {
             return next(new ErrorHandler("Invalid activation token.", 400));
         }
-        
-        const { user, activationCode: decodedCode } = decoded;
-        
-        if (decodedCode !== activationCode) {
+
+        // Check if the provided activation code matches the one stored in the session
+        if (activationCode !== sessionActivationCode) {
             return next(new ErrorHandler("Invalid activation code.", 400));
         }
 
         // Proceed with user registration if token and code are valid
-        const hashedPassword = await bcrypt.hash(user.password, 10);
-        
+        const hashedPassword = await bcrypt.hash(userDetails.password, 10);
+
         const newUser = new User({
-            name: user.name,
-            username: user.username,
-            email: user.email,
+            name: userDetails.name,
+            username: userDetails.username,
+            email: userDetails.email,
             password: hashedPassword,
-            bio: user.bio || null,
-            profilePic: user.profilePicBuffer || null,  
-            profilePicMimeType: user.profilePicMimetype || null,
-            interests: user.interests,
-            isSeller: user.isSeller || false,
-            storeName: user.isSeller ? user.storeName : null,
-            storeDescription: user.isSeller ? user.storeDescription : null,
-            storeImage: user.isSeller ? user.storeImageBuffer : null,
-            storeImageMimeType: user.isSeller ? user.storeImageMimetype : null
+            bio: userDetails.bio || null,
+            profilePic: userDetails.profilePicBuffer || null,
+            profilePicMimeType: userDetails.profilePicMimetype || null,
+            interests: userDetails.interests,
+            isSeller: userDetails.isSeller || false,
+            storeName: userDetails.isSeller ? userDetails.storeName : null,
+            storeDescription: userDetails.isSeller ? userDetails.storeDescription : null,
+            storeImage: userDetails.isSeller ? userDetails.storeImageBuffer : null,
+            storeImageMimeType: userDetails.isSeller ? userDetails.storeImageMimetype : null
         });
 
         await newUser.save();
-        
-        // Generate JWT token for the registered user
-        const token = generateToken(newUser);
-        res.cookie('token', token, { httpOnly: true, expires: new Date(Date.now() + 60 * 60 * 1000) });
 
-        // Clear session data
+        // Generate Access Token and Refresh Token for the newly registered user
+        const accessToken = generateAccessToken({ id: newUser._id, isSeller: newUser.isSeller });
+        const refreshToken = generateRefreshToken({ id: newUser._id, isSeller: newUser.isSeller });
+
+        // Store the refresh token in an HTTP-only cookie
+        res.cookie('refreshToken', refreshToken, { 
+            httpOnly: true, 
+            expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)  // Refresh token expires in 7 days
+        });
+
+        // Send the access token as part of the response
+        res.status(201).json({
+            accessToken, // Send access token
+            message: "User registered successfully.",
+            newUser
+        });
+
+        // Clear session data after successful registration
         req.session.activationCode = null;
         req.session.userDetails = null;
         req.session.activationTokenExpire = null;
-
-        res.status(201).json({ token, message: "User registered successfully.", newUser });
 
     } catch (error) {
         return next(new ErrorHandler("Invalid or expired activation token.", 400));
     }
 });
 
+
+// Refresh Token Endpoint
+exports.refreshToken = catchAsyncErrors(async (req, res, next) => {
+    const refreshToken = req.cookies.refreshToken; // Retrieve refresh token from cookies
+
+    if (!refreshToken) {
+        return next(new ErrorHandler("Refresh token is required.", 401));
+    }
+
+    try {
+        const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET); // Verify the refresh token
+
+        // Generate a new access token
+        const accessToken = generateAccessToken({ id: decoded.id, isSeller: decoded.isSeller });
+
+        res.status(200).json({
+            accessToken,
+            message: "Access token refreshed successfully."
+        });
+
+    } catch (error) {
+        return next(new ErrorHandler("Invalid refresh token.", 403));
+    }
+});
+
+// Login User
 exports.loginUser = catchAsyncErrors(async (req, res, next) => {
     const { email, password } = req.body;
 
@@ -239,64 +270,68 @@ exports.loginUser = catchAsyncErrors(async (req, res, next) => {
         return next(new ErrorHandler("Invalid email or password.", 400));
     }
 
-    // Create JWT Token
-    const token = generateToken(user._id, false, user.isSeller, user._id); // Set isAdmin to false for users
+    // Generate tokens
+    const accessToken = generateAccessToken({ id: user._id, isSeller: user.isSeller });
+    const refreshToken = generateRefreshToken({ id: user._id, isSeller: user.isSeller });
 
-    // Set the token in a cookie (optional)
-    res.cookie('token', token, {
+    // Set refresh token in a cookie
+    res.cookie('refreshToken', refreshToken, {
         httpOnly: true,
-        expires: new Date(Date.now() + 60 * 60 * 1000), // Cookie expires in 1 hour
+        expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days expiry
     });
 
-    res.json({ token, message: "Logged in successfully." , user});
+    // Respond with access token
+    res.status(200).json({
+        accessToken,
+        message: "Logged in successfully.",
+        user
+    });
 });
+
 // Seller Login
 exports.loginSeller = catchAsyncErrors(async (req, res, next) => {
     const { email, password } = req.body;
 
-    // Find the user by email and also fetch the password
-    const user = await User.findOne({ email }).select('+password');
-    
     // Check if the user exists and is a seller
-    if (!user) {
-        return next(new ErrorHandler("Invalid email or password.", 400)); // Agar user hi nahi mila
-    }
-
-    // Check if the user is a seller
-    if (!user.isSeller) {
-        return next(new ErrorHandler("User is not authorized as a seller.", 403)); // User seller nahi hai
+    const user = await User.findOne({ email }).select('+password');
+    if (!user || !user.isSeller) {
+        return next(new ErrorHandler("Invalid email or seller credentials.", 400));
     }
 
     // Compare password
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
-        return next(new ErrorHandler("Invalid email or password.", 400)); // Password match nahi hua
+        return next(new ErrorHandler("Invalid email or password.", 400));
     }
 
-    // Create JWT token for seller
-    const token = generateToken(user._id, false, user.isSeller, user._id); // isAdmin false, isSeller true
+    // Generate tokens
+    const accessToken = generateAccessToken({ id: user._id, isSeller: user.isSeller });
+    const refreshToken = generateRefreshToken({ id: user._id, isSeller: user.isSeller });
 
-    // Set token in cookie (optional)
-    res.cookie('token', token, {
+    // Set refresh token in a cookie
+    res.cookie('refreshToken', refreshToken, {
         httpOnly: true,
-        expires: new Date(Date.now() + 60 * 60 * 1000), // Cookie expires in 1 hour
+        expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days expiry
     });
 
-    // Successful login
-    res.json({ 
-        token, 
-        message: "Seller logged in successfully.", 
-        user 
+    // Respond with access token
+    res.status(200).json({
+        accessToken,
+        message: "Seller logged in successfully.",
+        user
     });
 });
-// User Logout
+
+// Logout User
 exports.logoutUser = catchAsyncErrors(async (req, res, next) => {
-    res.cookie('token', null, {
-        expires: new Date(Date.now()), // Expire cookie immediately
-        httpOnly: true,
+    res.cookie('refreshToken', null, {
+        expires: new Date(Date.now()), // Expire refresh token immediately
+        httpOnly: true
     });
+
     res.status(200).json({ message: "Logged out successfully." });
 });
+
 
 // Get User Profile
 exports.getUserProfile = catchAsyncErrors(async (req, res, next) => {
@@ -599,7 +634,7 @@ exports.searchStore = catchAsyncErrors(async (req, res, next) => {
 
     try {
         // Search for sellers with a matching store name
-        const stores = await User.findById(
+        const stores = await User.find(
             { isSeller: true,storeName: { $regex: storeName, $options: "i" }} ,'storeName storeImage'               
             );
 

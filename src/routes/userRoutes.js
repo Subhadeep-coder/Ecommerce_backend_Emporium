@@ -1,5 +1,5 @@
 const express = require('express');
-const {  loginUser, logoutUser, getUserProfile, updateProfile, test, passwordResetUser, otpVerifyUser, passwordUpdateUser, resendOtpUser, followSeller, unfollowSeller, getSellerProfile, getSellerFeed, getActivityFeed, getAllStores, registerUser, loginSeller, registerUserStepOne, registerUserStepTwo, verifyGoogleToken, searchStore, getProductsByStore } = require('../controllers/userControllers'); // Import the user controller functions
+const {  loginUser, logoutUser, getUserProfile, updateProfile, test, passwordResetUser, otpVerifyUser, passwordUpdateUser, resendOtpUser, followSeller, unfollowSeller, getSellerProfile, getSellerFeed, getActivityFeed, getAllStores, registerUser, loginSeller, registerUserStepOne, registerUserStepTwo, verifyGoogleToken, searchStore, getProductsByStore, refreshToken } = require('../controllers/userControllers'); // Import the user controller functions
 const upload = require("../config/multer-config");
 const { isLoggedIn } = require("../middlewares/checkAuth");
 const { unlikeProduct, uncommentOnProduct, unshareProduct } = require('../controllers/productControllers');
@@ -71,5 +71,6 @@ router.put('/product/:id/unshare', isLoggedIn, unshareProduct);
 router.post('/verifyToken', verifyGoogleToken);
 router.post('/search', searchStore);
 router.get('/store/:storeName/products', getProductsByStore)
+router.post('/refresh-token', refreshToken)
 
 module.exports = router;
