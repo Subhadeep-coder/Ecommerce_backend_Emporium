@@ -200,7 +200,6 @@ exports.registerUserStepTwo = catchAsyncErrors(async (req, res, next) => {
             storeImageMimeType: userDetails.isSeller ? userDetails.storeImageMimetype : null
         });
 
-        await newUser.save();
 
         // Generate Access Token and Refresh Token for the newly registered user
         const accessToken = generateAccessToken({ id: newUser._id, isSeller: newUser.isSeller });
@@ -211,7 +210,8 @@ exports.registerUserStepTwo = catchAsyncErrors(async (req, res, next) => {
             httpOnly: true, 
             expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)  // Refresh token expires in 7 days
         });
-
+        newUser.refreshToken = refreshToken;
+        await newUser.save();
         // Send the access token as part of the response
         res.status(201).json({
             accessToken, // Send access token
