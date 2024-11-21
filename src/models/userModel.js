@@ -109,7 +109,11 @@ const userSchema = new mongoose.Schema({
         user: { type: mongoose.Schema.Types.ObjectId, ref: 'user' }, // The user who initiated the activity
         product: { type: mongoose.Schema.Types.ObjectId, ref: 'product' }, // The product related to the activity
         createdAt: { type: Date, default: Date.now }
-    }]
+    }],
+    refreshToken: {
+        type: String,  // Store refresh token here
+        default: null
+    }
 }, {
     timestamps: true      // Automatically handles createdAt and updatedAt fields
 });
