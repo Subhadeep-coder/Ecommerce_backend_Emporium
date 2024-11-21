@@ -77,7 +77,7 @@ exports.verifyGoogleToken = async (req, res) => {
         }
 
         // Generate a JWT token (matching your other routes)
-        const token = generateToken(user);
+        const token = generateAccessToken(user);
 
         res.json({
             token,
@@ -200,7 +200,6 @@ exports.registerUserStepTwo = catchAsyncErrors(async (req, res, next) => {
             storeImageMimeType: userDetails.isSeller ? userDetails.storeImageMimetype : null
         });
 
-
         // Generate Access Token and Refresh Token for the newly registered user
         const accessToken = generateAccessToken({ id: newUser._id, isSeller: newUser.isSeller });
         const refreshToken = generateRefreshToken({ id: newUser._id, isSeller: newUser.isSeller });
@@ -210,8 +209,17 @@ exports.registerUserStepTwo = catchAsyncErrors(async (req, res, next) => {
             httpOnly: true, 
             expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)  // Refresh token expires in 7 days
         });
+
         newUser.refreshToken = refreshToken;
         await newUser.save();
+
+        // Set the access token in an HTTP-only cookie at the time of registration
+        res.cookie('token', accessToken, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production', // Ensure secure cookies in production
+            expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days expiry
+        });
+
         // Send the access token as part of the response
         res.status(201).json({
             accessToken, // Send access token
@@ -253,7 +261,6 @@ exports.refreshToken = catchAsyncErrors(async (req, res, next) => {
         return next(new ErrorHandler("Invalid refresh token.", 403));
     }
 });
-
 // Login User
 exports.loginUser = catchAsyncErrors(async (req, res, next) => {
     const { email, password } = req.body;
@@ -277,6 +284,13 @@ exports.loginUser = catchAsyncErrors(async (req, res, next) => {
     // Set refresh token in a cookie
     res.cookie('refreshToken', refreshToken, {
         httpOnly: true,
+        expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days expiry
+    });
+
+    // Set the access token in an HTTP-only cookie
+    res.cookie('token', accessToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production', // Ensure secure cookies in production
         expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days expiry
     });
 
@@ -314,6 +328,13 @@ exports.loginSeller = catchAsyncErrors(async (req, res, next) => {
         expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days expiry
     });
 
+    // Set the access token in an HTTP-only cookie
+    res.cookie('token', accessToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production', // Ensure secure cookies in production
+        expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days expiry
+    });
+
     // Respond with access token
     res.status(200).json({
         accessToken,
@@ -337,6 +358,8 @@ exports.logoutUser = catchAsyncErrors(async (req, res, next) => {
 exports.getUserProfile = catchAsyncErrors(async (req, res, next) => {
     const user = await User.findById(req.user.id).select('-password'); // Use req.user.id after login middleware
     console.log(req.user.id);
+    console.log(user);
+    
     
 
     if (!user) {
