@@ -4,7 +4,7 @@ const {productModel, productValidation } = require('../models/productModel'); //
 const Notification  = require('../models/notification-Model'); // Import the Product model and validation
 const { catchAsyncErrors } = require("../middlewares/catchAsyncError");
 const ErrorHandler = require("../utils/ErrorHandler");
-const { generateAccessToken, generateRefreshToken } = require("../utils/SendToken");  
+const { generateAccessToken, generateRefreshToken, generateAccessToken2 } = require("../utils/SendToken");  
 const sendMail = require("../utils/nodemailer")
 const crypto = require("crypto")
 const jwt = require('jsonwebtoken');
@@ -75,6 +75,8 @@ exports.verifyGoogleToken = async (req, res) => {
             await user.save();
             isNewUser = true;
         }
+
+        console.log("hello1")
 
         // Generate a JWT token (matching your other routes)
         const token = generateAccessToken(user);
@@ -163,23 +165,25 @@ exports.registerUserStepTwo = catchAsyncErrors(async (req, res, next) => {
     }
 
     // Retrieve session data
-    const { activationCode: sessionActivationCode, activationTokenExpire, userDetails } = req.session;
+    // const { activationCode: sessionActivationCode, activationTokenExpire, userDetails } = req.session;
 
-    if (!sessionActivationCode || Date.now() > activationTokenExpire) {
-        return next(new ErrorHandler("Activation token has expired.", 400));
-    }
+    // if (!sessionActivationCode || Date.now() > activationTokenExpire) {
+    //     return next(new ErrorHandler("Activation token has expired.", 400));
+    // }
 
     try {
         // Verify the activation token
         const decoded = jwt.verify(activationToken, process.env.JWT_SECRET);
-        if (!decoded || !userDetails) {
+        if (!decoded) {
             return next(new ErrorHandler("Invalid activation token.", 400));
         }
 
         // Check if the provided activation code matches the one stored in the session
-        if (activationCode !== sessionActivationCode) {
+        if (activationCode !== decoded.activationCode) {
             return next(new ErrorHandler("Invalid activation code.", 400));
         }
+
+        const userDetails = decoded.user
 
         // Proceed with user registration if token and code are valid
         const hashedPassword = await bcrypt.hash(userDetails.password, 10);
@@ -201,7 +205,7 @@ exports.registerUserStepTwo = catchAsyncErrors(async (req, res, next) => {
         });
 
         // Generate Access Token and Refresh Token for the newly registered user
-        const accessToken = generateAccessToken({ id: newUser._id, isSeller: newUser.isSeller });
+        const accessToken = generateAccessToken2({ id: newUser._id, isSeller: newUser.isSeller });
         const refreshToken = generateRefreshToken({ id: newUser._id, isSeller: newUser.isSeller });
 
         // Store the refresh token in an HTTP-only cookie
@@ -216,7 +220,7 @@ exports.registerUserStepTwo = catchAsyncErrors(async (req, res, next) => {
         // Set the access token in an HTTP-only cookie at the time of registration
         res.cookie('token', accessToken, {
             httpOnly: true,
-            secure: process.env.NODE_ENV === 'production', // Ensure secure cookies in production
+            // secure: process.env.NODE_ENV === 'production', // Ensure secure cookies in production
             expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days expiry
         });
 
@@ -271,6 +275,8 @@ exports.loginUser = catchAsyncErrors(async (req, res, next) => {
         return next(new ErrorHandler("Invalid email or password.", 400));
     }
 
+    console.log(user.name)
+
     // Compare passwords
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
@@ -278,8 +284,10 @@ exports.loginUser = catchAsyncErrors(async (req, res, next) => {
     }
 
     // Generate tokens
-    const accessToken = generateAccessToken({ id: user._id, isSeller: user.isSeller });
+    const accessToken = generateAccessToken2({ id: user._id, isSeller: user.isSeller });
+    console.log("hello1")
     const refreshToken = generateRefreshToken({ id: user._id, isSeller: user.isSeller });
+    console.log("hello 4")
 
     // Set refresh token in a cookie
     res.cookie('refreshToken', refreshToken, {
@@ -290,9 +298,11 @@ exports.loginUser = catchAsyncErrors(async (req, res, next) => {
     // Set the access token in an HTTP-only cookie
     res.cookie('token', accessToken, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production', // Ensure secure cookies in production
+        // secure: process.env.NODE_ENV === 'production', // Ensure secure cookies in production
         expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days expiry
     });
+
+    console.log("22222")
 
     // Respond with access token
     res.status(200).json({
@@ -319,7 +329,7 @@ exports.loginSeller = catchAsyncErrors(async (req, res, next) => {
     }
 
     // Generate tokens
-    const accessToken = generateAccessToken({ id: user._id, isSeller: user.isSeller });
+    const accessToken = generateAccessToken2({ id: user._id, isSeller: user.isSeller });
     const refreshToken = generateRefreshToken({ id: user._id, isSeller: user.isSeller });
 
     // Set refresh token in a cookie
@@ -331,7 +341,7 @@ exports.loginSeller = catchAsyncErrors(async (req, res, next) => {
     // Set the access token in an HTTP-only cookie
     res.cookie('token', accessToken, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production', // Ensure secure cookies in production
+        // secure: process.env.NODE_ENV === 'production', // Ensure secure cookies in production
         expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days expiry
     });
 
@@ -345,18 +355,31 @@ exports.loginSeller = catchAsyncErrors(async (req, res, next) => {
 
 // Logout User
 exports.logoutUser = catchAsyncErrors(async (req, res, next) => {
+
+    console.log('HELLOOOOOO');
+    
+    // Clear cookies
     res.cookie('refreshToken', null, {
-        expires: new Date(Date.now()), // Expire refresh token immediately
+        expires: new Date(Date.now()), 
         httpOnly: true
     });
 
-    res.status(200).json({ message: "Logged out successfully." });
+    res.cookie('token', null, {
+        expires: new Date(Date.now()), 
+        httpOnly: true
+    });
+
+    res.status(200).json({ message: 'Logged out successfully.' });
 });
 
 
 // Get User Profile
 exports.getUserProfile = catchAsyncErrors(async (req, res, next) => {
-    const user = await User.findById(req.user.id).select('-password'); // Use req.user.id after login middleware
+    console.log(req.user.id)
+    console.log('-------------------------')
+
+    const user = await User.findOne({ _id: req.user.id }).select('-password');
+    
     console.log(req.user.id);
     console.log(user);
     
