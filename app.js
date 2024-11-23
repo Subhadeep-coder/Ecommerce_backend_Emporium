@@ -4,6 +4,7 @@ const http = require('http'); // Required for setting up Socket.IO with Express
 const { Server } = require('socket.io'); // Importing Socket.IO
 const cookieParser = require('cookie-parser');
 const expressSession = require('express-session');
+const cors = require("cors");
 
 // Importing routers
 const userRouter = require("./src/routes/userRoutes");
@@ -21,7 +22,6 @@ const MongoStore = require('connect-mongo');
 // Import database connection and Socket.IO setup
 const db = require("./src/config/mongoose-connection");
 const { setupSocket } = require('./src/utils/socket-io');
-const cors = require("cors")
 
 // Connect to MongoDB
 const app = express();
@@ -29,32 +29,17 @@ const app = express();
 // Creating HTTP server from the Express app
 const server = http.createServer(app);
 
-// Initializing Socket.IO with the HTTP server
-// CORS setup
-
-
-
-// Initializing Socket.IO on the HTTP server
-const io = new Server(server, {
-    cors: {
-        origin: "*",  // Adjust CORS policy as needed for security
-        methods: ["GET", "POST"]
-    }
-});
-
 // Middleware
 app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-// CORS setup
+
+// CORS setup for Express
 app.use(cors({
-    origin: true,
-    credentials: true
+    origin: process.env.CLIENT_URL, // Your frontend origin (e.g., "http://localhost:3000")
+    methods: ["GET", "POST", "PUT", "DELETE"], // Allowed HTTP methods
+    credentials: true // Allow credentials (cookies, etc.)
 }));
-
-
-// Initializing Socket.IO on the HTTP server
-
 
 // Express session
 app.use(expressSession({
@@ -64,8 +49,22 @@ app.use(expressSession({
     store: MongoStore.create({
         mongoUrl: process.env.MONGODB_URI, // Your MongoDB connection URL
         collectionName: 'sessions'
-    })
+    }),
+    cookie: {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production', // Set to true in production
+        maxAge: 1000 * 60 * 60 * 24 * 7 // 1 week
+    }
 }));
+
+// Initializing Socket.IO on the HTTP server with CORS settings
+const io = new Server(server, {
+    cors: {
+        origin: process.env.CLIENT_URL,  // Your frontend origin (e.g., "http://localhost:3000")
+        methods: ["GET", "POST"],
+        credentials: true // Allow credentials for Socket.IO
+    }
+});
 
 // Setup Socket.IO with the existing function
 setupSocket(io);
@@ -78,7 +77,7 @@ app.use("/cart", cartRouter);
 app.use("/order", orderRouter);
 app.use("/payment", paymentRouter);
 app.use("/auth", googleAuthRoutes);
-app.use("/meesages", messageRoutes);
+app.use("/messages", messageRoutes);  // Fixed the typo from "meesages"
 app.use("/cash", cashRouter);
 app.use("/address", addressRoutes);
 
