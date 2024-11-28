@@ -50,6 +50,10 @@ const orderSchema = new Schema({
     enum: ['pending', 'shipped', 'delivered'],
     default: 'pending', // Default is 'pending'
   },
+  deliveryAgent:{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'devliveryAgent',
+  }
 }, { timestamps: true });
 
 const Order = mongoose.model('order', orderSchema);

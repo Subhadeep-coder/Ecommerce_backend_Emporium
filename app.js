@@ -80,6 +80,7 @@ app.use("/auth", googleAuthRoutes);
 app.use("/messages", messageRoutes);  // Fixed the typo from "meesages"
 app.use("/cash", cashRouter);
 app.use("/address", addressRoutes);
+app.use("/delivery-agent", addressRoutes);
 
 // Server listens on the specified port
 const PORT = process.env.PORT || 3000;
