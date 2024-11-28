@@ -6,7 +6,6 @@ const jwt = require('jsonwebtoken');
 const ErrorHandler = require("../utils/ErrorHandler");
 const crypto = require("crypto")
 
-
 const generateActivationCode = (user) => {
     const activationCode = crypto.randomInt(1000000).toString();
 
@@ -44,7 +43,6 @@ exports.verifyDeliveryAgent = catchAsyncErrors(async (req, res, next) => {
     }
 
     try {
-
         const decoded = jwt.verify(activationToken, process.env.JWT_SECRET);
         if (!decoded) {
             return next(new ErrorHandler("Invalid activation token.", 400));
@@ -60,8 +58,9 @@ exports.verifyDeliveryAgent = catchAsyncErrors(async (req, res, next) => {
 
         const hashedPassword = await bcrypt.hash(password, 10);
 
-        const newUser = new DeliveryAgentModel({
-            name: name,
+        console.log('hello');
+        const newUser = await DeliveryAgentModel.create({
+            fullname: name,
             email: email,
             password: hashedPassword,
             phoneNumber,
@@ -70,7 +69,6 @@ exports.verifyDeliveryAgent = catchAsyncErrors(async (req, res, next) => {
         });
 
         const accessToken = generateAccessToken2({ id: newUser._id, isSeller: newUser.isSeller });
-        
         res.status(201).json({
             accessToken, // Send access token
             message: "User registered successfully.",
@@ -78,7 +76,7 @@ exports.verifyDeliveryAgent = catchAsyncErrors(async (req, res, next) => {
         });
 
     } catch (error) {
-        return next(new ErrorHandler("Invalid or expired activation token.", 400));
+        return next(new ErrorHandler("Invalid or expired activation token." + error.toString(), 400));
     }
 });
 
