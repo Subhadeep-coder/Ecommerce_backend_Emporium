@@ -167,7 +167,7 @@ const deleteProduct = catchAsyncErrors(async (req, res, next) => {
     return next(new ErrorHandler("Unauthorized or product not found", 403));
   }
 
-  await product.remove();
+  await productModel.findByIdAndDelete(product._id);
   res.status(200).json({ message: "Product deleted successfully" });
 });
 
@@ -472,7 +472,7 @@ const uncommentOnProduct = catchAsyncErrors(async (req, res, next) => {
     commentsCount: product.comments.length,
     sharesCount: product.shares.length
   });
-}); 
+});
 
 const unshareProduct = catchAsyncErrors(async (req, res, next) => {
   const productId = req.params.id;
