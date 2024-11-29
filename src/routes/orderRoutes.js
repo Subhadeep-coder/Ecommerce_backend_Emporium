@@ -4,12 +4,13 @@ const orderController = require('../controllers/orderController');
 const { isLoggedIn } = require('../middlewares/checkAuth');
 
 // Route to get orders for a specific user
-router.get('/userOrder',isLoggedIn, orderController.getOrders);
+router.get('/userOrder', isLoggedIn, orderController.getOrders);
 
 // New route for completing purchase
-router.post('/complete-purchase',isLoggedIn, orderController.completePurchase);
+router.post('/complete-purchase', isLoggedIn, orderController.completePurchase);
 router.get('/', orderController.test);
 router.get('/user-order/:id', isLoggedIn, orderController.getSingleOrder);
+router.get('/store', isLoggedIn, orderController.getOrdersByStore);
 
 
 

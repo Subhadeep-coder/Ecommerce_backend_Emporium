@@ -2,7 +2,8 @@ const Order = require("../models/orderModel");
 const Cart = require("../models/cartModel");
 const Payment = require("../models/paymentModel");
 const { catchAsyncErrors } = require("../middlewares/catchAsyncError");
-const errorhandler = require("../utils/ErrorHandler");
+const ErrorHandler = require("../utils/ErrorHandler");
+const { User } = require("../models/userModel");
 
 // Get all orders for a user
 exports.getOrders = catchAsyncErrors(async (req, res, next) => {
@@ -83,6 +84,85 @@ exports.getSingleOrder = catchAsyncErrors(async (req, res, next) => {
   }
 });
 
+exports.getOrdersByStore = catchAsyncErrors(async (req, res, next) => {
+  const userId = req.user.id;
+  const { storeName, page, limit } = req.query;
+  // Ensure storeName is provided
+  if (!storeName) {
+    return next(new ErrorHandler("Store name is required to fetch products", 400));
+  }
+
+  // Find the seller by store name
+  const seller = await User.findOne({ storeName });
+
+  // If no seller is found, return an error
+  if (!seller) {
+    return next(new ErrorHandler("Seller not found with the given store name", 404));
+  }
+
+  if (seller._id != userId) {
+    return next(new ErrorHandler("You're not seller", 401));
+  }
+
+  const skip = (page - 1) * limit;
+  const orders = await Order.aggregate([
+    {
+      $lookup: {
+        from: "products",
+        localField: "products.productId",
+        foreignField: "_id",
+        as: "productDetails",
+      },
+    },
+    {
+      $lookup: {
+        from: 'users',
+        localField: 'productDetails.user',
+        foreignField: '_id',
+        as: 'productDetails.userDetails'
+      }
+    },
+    {
+      $match: {
+        "productDetails.userDetails.storeName": storeName,
+      },
+    },
+    {
+      $group: {
+        _id: "$_id",
+        userId: { $first: "$userId" },
+        products: {
+          $push: {
+            productId: "$productDetails._id",
+            quantity: "$products.quantity",
+            _id: "$products._id"
+          }
+        },
+        totalAmount: { $first: "$totalAmount" },
+        address: { $first: "$address" },
+        location: { $first: "$location" },
+        status: { $first: "$status" },
+        paymentMethod: { $first: "$paymentMethod" },
+        paymentStatus: { $first: "$paymentStatus" },
+        deliveryStatus: { $first: "$deliveryStatus" },
+        createdAt: { $first: "$createdAt" },
+        updatedAt: { $first: "$updatedAt" }
+      }
+    },
+    {
+      $skip: skip ? skip : 0,
+    },
+    {
+      $limit: limit ? limit : 10,
+    },
+  ]);
+
+  console.log(orders);
+
+  return res.status(200).json({
+    orders: orders
+  });
+})
 
 
 // Test route for verification

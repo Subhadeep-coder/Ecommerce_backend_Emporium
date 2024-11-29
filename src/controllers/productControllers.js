@@ -2,6 +2,7 @@ const { productModel, productValidation } = require("../models/productModel");
 const { User, validateUser } = require("../models/userModel");
 const { catchAsyncErrors } = require("../middlewares/catchAsyncError");
 const ErrorHandler = require("../utils/ErrorHandler");
+const sendNotification = require('../utils/sendNotifications'); // Import the notification helper
 
 const test = catchAsyncErrors(async (req, res, next) => {
   res.json({ message: 'products' });
@@ -41,7 +42,7 @@ const createProduct = catchAsyncErrors(async (req, res, next) => {
     inventory,
     user: req.user.id,
   });
-  
+
   if (error) return next(new ErrorHandler(error.details[0].message, 400));
 
   // Create new product
@@ -80,6 +81,8 @@ const createProduct = catchAsyncErrors(async (req, res, next) => {
 
   res.status(201).json({ message: "Product created successfully", product: newProduct });
 });
+
+
 const getAllProducts = catchAsyncErrors(async (req, res, next) => {
   const { search, category, minPrice, maxPrice, sortBy, page = 1, limit = 10 } = req.query;
   let query = {};
@@ -125,16 +128,20 @@ const getAllProducts = catchAsyncErrors(async (req, res, next) => {
     products
   });
 });
+
+
 const getSingleProduct = catchAsyncErrors(async (req, res, next) => {
   const product = await productModel.findById(req.params.id);
   if (!product) return next(new ErrorHandler("Product not found", 404));
-  
+
   // Increment views for popularity tracking
   product.views = (product.views || 0) + 1;
   await product.save();
 
   res.status(200).json({ product });
 });
+
+
 const updateProduct = catchAsyncErrors(async (req, res, next) => {
   const product = await productModel.findById(req.params.id);
   if (!product || product.user.toString() !== req.user.id) {
@@ -249,48 +256,46 @@ const removeFromWishlist = catchAsyncErrors(async (req, res, next) => {
 });
 
 
-const sendNotification = require('../utils/sendNotifications'); // Import the notification helper
-
 const likeProduct = catchAsyncErrors(async (req, res, next) => {
-    const productId = req.params.id;
-    const userId = req.user.id;
+  const productId = req.params.id;
+  const userId = req.user.id;
 
-    const product = await productModel.findById(productId);
-    if (!product) {
-        return next(new ErrorHandler("Product not found", 404));
-    }
+  const product = await productModel.findById(productId);
+  if (!product) {
+    return next(new ErrorHandler("Product not found", 404));
+  }
 
-    const productOwner = await User.findById(product.user);
-    if (!productOwner) {
-        return next(new ErrorHandler("User associated with this product not found", 404));
-    }
+  const productOwner = await User.findById(product.user);
+  if (!productOwner) {
+    return next(new ErrorHandler("User associated with this product not found", 404));
+  }
 
-    if (product.likes.includes(userId)) {
-        return next(new ErrorHandler("You have already liked this product", 400));
-    }
+  if (product.likes.includes(userId)) {
+    return next(new ErrorHandler("You have already liked this product", 400));
+  }
 
-    product.likes.push(userId);
-    await product.save();
+  product.likes.push(userId);
+  await product.save();
 
-    productOwner.activityFeed.push({
-        type: 'like',
-        user: userId,
-        product: productId
-    });
-    await productOwner.save();
+  productOwner.activityFeed.push({
+    type: 'like',
+    user: userId,
+    product: productId
+  });
+  await productOwner.save();
 
-    // Get the Socket.IO instance from the app
-    const io = req.app.get('socketio');
+  // Get the Socket.IO instance from the app
+  const io = req.app.get('socketio');
 
-    // Send the notification using the helper function
-    await sendNotification(productOwner._id, `${req.user.id} liked your product.`, 'like', userId, productId, io);
+  // Send the notification using the helper function
+  await sendNotification(productOwner._id, `${req.user.id} liked your product.`, 'like', userId, productId, io);
 
-    res.status(200).json({
-        message: "Product liked successfully",
-        likesCount: product.likes.length,
-        commentsCount: product.comments.length,
-        sharesCount: product.shares.length
-    });
+  res.status(200).json({
+    message: "Product liked successfully",
+    likesCount: product.likes.length,
+    commentsCount: product.comments.length,
+    sharesCount: product.shares.length
+  });
 });
 
 
@@ -301,21 +306,21 @@ const commentOnProduct = catchAsyncErrors(async (req, res, next) => {
 
   const product = await productModel.findById(productId);
   if (!product) {
-      return next(new ErrorHandler("Product not found", 404));
+    return next(new ErrorHandler("Product not found", 404));
   }
 
   const productOwner = await User.findById(product.user);
   if (!productOwner) {
-      return next(new ErrorHandler("User associated with this product not found", 404));
+    return next(new ErrorHandler("User associated with this product not found", 404));
   }
 
   product.comments.push({ user: userId, comment });
   await product.save();
 
   productOwner.activityFeed.push({
-      type: 'comment',
-      user: userId,
-      product: productId
+    type: 'comment',
+    user: userId,
+    product: productId
   });
 
   await productOwner.save();
@@ -327,23 +332,25 @@ const commentOnProduct = catchAsyncErrors(async (req, res, next) => {
   await sendNotification(productOwner._id, `${req.user.id} commented on your product.`, 'comment', userId, productId, io);
 
   res.status(200).json({
-      message: "Comment added successfully",
-      likesCount: product.likes.length,
-      commentsCount: product.comments.length,
-      sharesCount: product.shares.length
+    message: "Comment added successfully",
+    likesCount: product.likes.length,
+    commentsCount: product.comments.length,
+    sharesCount: product.shares.length
   });
 });
+
+
 const getAllComments = catchAsyncErrors(async (req, res, next) => {
   const productId = req.params.id;
 
   const product = await productModel.findById(productId);
   if (!product) {
-      return next(new ErrorHandler("Product not found", 404));
+    return next(new ErrorHandler("Product not found", 404));
   }
 
   res.status(200).json({
-      success: true,
-      comments: product.comments
+    success: true,
+    comments: product.comments
   });
 });
 
@@ -355,20 +362,20 @@ const shareProduct = catchAsyncErrors(async (req, res, next) => {
 
   const product = await productModel.findById(productId).populate('user');
   if (!product) {
-      return next(new ErrorHandler("Product not found", 404));
+    return next(new ErrorHandler("Product not found", 404));
   }
 
   product.shares.push({ user: userId, sharedTo });
   await product.save();
 
   if (!product.user.activityFeed) {
-      product.user.activityFeed = [];
+    product.user.activityFeed = [];
   }
 
   product.user.activityFeed.push({
-      type: 'share',
-      user: userId,
-      product: productId
+    type: 'share',
+    user: userId,
+    product: productId
   });
 
   await product.user.save();
@@ -380,12 +387,14 @@ const shareProduct = catchAsyncErrors(async (req, res, next) => {
   await sendNotification(product.user._id, `${req.user.id} shared your product.`, 'share', userId, productId, io);
 
   res.status(200).json({
-      message: "Product shared successfully",
-      likesCount: product.likes.length,
-      commentsCount: product.comments.length,
-      sharesCount: product.shares.length
+    message: "Product shared successfully",
+    likesCount: product.likes.length,
+    commentsCount: product.comments.length,
+    sharesCount: product.shares.length
   });
 });
+
+
 const getSellerProducts = catchAsyncErrors(async (req, res, next) => {
   const seller = await User.findById(req.user.id);
 
@@ -398,25 +407,22 @@ const getSellerProducts = catchAsyncErrors(async (req, res, next) => {
 });
 
 
-
-
-
 const unlikeProduct = catchAsyncErrors(async (req, res, next) => {
   const productId = req.params.id;
   const userId = req.user.id;
 
   const product = await productModel.findById(productId);
   if (!product) {
-      return next(new ErrorHandler("Product not found", 404));
+    return next(new ErrorHandler("Product not found", 404));
   }
 
   const productOwner = await User.findById(product.user);
   if (!productOwner) {
-      return next(new ErrorHandler("User associated with this product not found", 404));
+    return next(new ErrorHandler("User associated with this product not found", 404));
   }
 
   if (!product.likes.includes(userId)) {
-      return next(new ErrorHandler("You haven't liked this product yet", 400));
+    return next(new ErrorHandler("You haven't liked this product yet", 400));
   }
 
   product.likes = product.likes.filter(id => id.toString() !== userId);
@@ -426,12 +432,14 @@ const unlikeProduct = catchAsyncErrors(async (req, res, next) => {
   await productOwner.save();
 
   res.status(200).json({
-      message: "Product unliked successfully",
-      likesCount: product.likes.length,
-      commentsCount: product.comments.length,
-      sharesCount: product.shares.length
+    message: "Product unliked successfully",
+    likesCount: product.likes.length,
+    commentsCount: product.comments.length,
+    sharesCount: product.shares.length
   });
 });
+
+
 const uncommentOnProduct = catchAsyncErrors(async (req, res, next) => {
   const productId = req.params.id;
   const userId = req.user.id;
@@ -439,17 +447,17 @@ const uncommentOnProduct = catchAsyncErrors(async (req, res, next) => {
 
   const product = await productModel.findById(productId);
   if (!product) {
-      return next(new ErrorHandler("Product not found", 404));
+    return next(new ErrorHandler("Product not found", 404));
   }
 
   const productOwner = await User.findById(product.user);
   if (!productOwner) {
-      return next(new ErrorHandler("User associated with this product not found", 404));
+    return next(new ErrorHandler("User associated with this product not found", 404));
   }
 
   const commentIndex = product.comments.findIndex(c => c._id.toString() === commentId && c.user.toString() === userId);
   if (commentIndex === -1) {
-      return next(new ErrorHandler("Comment not found or you are not authorized to delete this comment", 404));
+    return next(new ErrorHandler("Comment not found or you are not authorized to delete this comment", 404));
   }
 
   product.comments.splice(commentIndex, 1);
@@ -459,23 +467,25 @@ const uncommentOnProduct = catchAsyncErrors(async (req, res, next) => {
   await productOwner.save();
 
   res.status(200).json({
-      message: "Comment removed successfully",
-      likesCount: product.likes.length,
-      commentsCount: product.comments.length,
-      sharesCount: product.shares.length
+    message: "Comment removed successfully",
+    likesCount: product.likes.length,
+    commentsCount: product.comments.length,
+    sharesCount: product.shares.length
   });
-});const unshareProduct = catchAsyncErrors(async (req, res, next) => {
+}); 
+
+const unshareProduct = catchAsyncErrors(async (req, res, next) => {
   const productId = req.params.id;
   const userId = req.user.id;
 
   const product = await productModel.findById(productId).populate('user');
   if (!product) {
-      return next(new ErrorHandler("Product not found", 404));
+    return next(new ErrorHandler("Product not found", 404));
   }
 
   const shareIndex = product.shares.findIndex(share => share.user.toString() === userId);
   if (shareIndex === -1) {
-      return next(new ErrorHandler("You haven't shared this product", 404));
+    return next(new ErrorHandler("You haven't shared this product", 404));
   }
 
   product.shares.splice(shareIndex, 1);
@@ -485,18 +495,18 @@ const uncommentOnProduct = catchAsyncErrors(async (req, res, next) => {
   await product.user.save();
 
   res.status(200).json({
-      message: "Product unshared successfully",
-      likesCount: product.likes.length,
-      commentsCount: product.comments.length,
-      sharesCount: product.shares.length
+    message: "Product unshared successfully",
+    likesCount: product.likes.length,
+    commentsCount: product.comments.length,
+    sharesCount: product.shares.length
   });
 });
 
 
 const getProductsByStore = catchAsyncErrors(async (req, res, next) => {
-  const { storeName } = req.query;
+  const { storeName, page, limit } = req.query;
   console.log(storeName);
-  
+
 
   // Ensure storeName is provided
   if (!storeName) {
@@ -510,9 +520,9 @@ const getProductsByStore = catchAsyncErrors(async (req, res, next) => {
   if (!seller) {
     return next(new ErrorHandler("Seller not found with the given store name", 404));
   }
-
+  const skip = (page - 1) * limit;
   // Fetch products created by the seller
-  const products = await productModel.find({ user: seller._id });
+  const products = await productModel.find({ user: seller._id }).skip(skip).limit(limit);
 
   // If no products are found, return an empty array
   if (!products.length) {
@@ -542,5 +552,5 @@ module.exports = {
   uncommentOnProduct,
   unshareProduct,
   getAllComments
-  
+
 };
