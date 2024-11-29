@@ -1,10 +1,12 @@
 const { catchAsyncErrors } = require("../middlewares/catchAsyncError");
 const DeliveryAgentModel = require("../models/deliveryAgentModel");
+const Order = require("../models/orderModel");
 const bcrypt = require("bcrypt");
 const { generateAccessToken2 } = require("../utils/SendToken");
 const jwt = require('jsonwebtoken');
 const ErrorHandler = require("../utils/ErrorHandler");
-const crypto = require("crypto")
+const crypto = require("crypto");
+
 
 const generateActivationCode = (user) => {
     const activationCode = crypto.randomInt(1000000).toString();
@@ -132,4 +134,56 @@ exports.getDeliveryAgentProfile = catchAsyncErrors(async (req, res, next) => {
     }
 
     res.status(200).json(user);
+})
+
+exports.getNearestOrders = catchAsyncErrors(async (req, res, next) => {
+    const { location } = req.body;
+
+    const orders = await Order.aggregate([
+        {
+            $match: {
+                $or: [
+                    { deliveryAgent: null },
+                    { deliveryAgent: { $exists: false } }
+                ]
+            }
+        },
+        {
+            $geoNear: {
+                near: {
+                    type: "Point",
+                    coordinates: [parseFloat(location.x), parseFloat(location.y)]
+                },
+                spherical: true,
+                key: "location",
+                maxDistance: parseFloat(1000) * 1609,
+                distanceField: "dist.calculated"
+            }
+        }
+    ]);
+
+
+    return res.status(200).json({
+        orders
+    });
+})
+
+exports.assignOrder = catchAsyncErrors(async (req, res, next) => {
+    const userId = req.user.id;
+    const { orderId } = req.body;
+    const updatedDeliveryAgent = await DeliveryAgentModel.findByIdAndUpdate(userId, {
+        $set: {
+            isAvailable: false
+        }
+    });
+    const updatedOrder = await Order.findByIdAndUpdate(orderId, {
+        $set: {
+            deliveryAgent: updatedDeliveryAgent._id
+        }
+    });
+
+    return res.status(400).json({
+        message: "Assigned successfully",
+        orderId: updatedOrder._id
+    });
 })

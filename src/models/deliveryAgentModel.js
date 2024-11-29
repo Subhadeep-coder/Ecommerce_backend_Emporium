@@ -31,6 +31,10 @@ const DeliveryAgentSchema = new mongoose.Schema({
         type: Number,
         required: true
     },
+    isAvailable: {
+        type: Boolean,
+        default: true
+    },
     location: {
         ltd: {
             type: Number,

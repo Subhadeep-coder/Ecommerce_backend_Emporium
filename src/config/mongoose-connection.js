@@ -2,7 +2,7 @@ const mongoose = require("mongoose");
 const dbgr = require("debug")("development:mongoose");
 
 mongoose
-  .connect(process.env.MONGODB_URI, { useNewUrlParser: true, useUnifiedTopology: true , serverSelectionTimeoutMS: 30000,})
+  .connect(process.env.MONGODB_URI)
   .then(() => {
     console.log("Connected to the database");
   })

@@ -1,9 +1,6 @@
 const Order = require("../models/orderModel");
 const Cart = require("../models/cartModel");
 const { catchAsyncErrors } = require("../middlewares/catchAsyncError");
-const errorhandler = require("../utils/ErrorHandler");
-
-
 
 
 // Complete purchase for Cash on Delivery (COD) and remove items from cart
