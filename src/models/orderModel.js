@@ -24,6 +24,18 @@ const orderSchema = new Schema({
     type: Number,
     required: true,
   },
+  address: {
+    type: String,
+    required: true
+  },
+  location: {
+    x: {
+      type: Number,
+    },
+    y: {
+      type: Number
+    }
+  },
   status: {
     type: String,
     enum: ['Order Placed', 'Processing', 'Packed', 'Shipped', 'Out for Delivery', 'Delivered'],
@@ -50,7 +62,7 @@ const orderSchema = new Schema({
     enum: ['pending', 'shipped', 'delivered'],
     default: 'pending', // Default is 'pending'
   },
-  deliveryAgent:{
+  deliveryAgent: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'devliveryAgent',
   }

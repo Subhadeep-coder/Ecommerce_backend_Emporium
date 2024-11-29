@@ -1,6 +1,7 @@
 const express = require('express');
-const { registerDeliveryAgent, verifyDeliveryAgent, loginDeliveryAgent } = require('../controllers/deliveryAgentController');
+const { registerDeliveryAgent, verifyDeliveryAgent, loginDeliveryAgent, getDeliveryAgentProfile } = require('../controllers/deliveryAgentController');
 const upload = require("../config/multer-config");
+const { isLoggedIn } = require('../middlewares/checkAuth');
 const deliveryAgentRouter = express.Router();
 
 deliveryAgentRouter.post('/signup', upload.fields([
@@ -9,5 +10,6 @@ deliveryAgentRouter.post('/signup', upload.fields([
 ]), registerDeliveryAgent);
 deliveryAgentRouter.post('/verify', verifyDeliveryAgent);
 deliveryAgentRouter.post('/login', loginDeliveryAgent);
+deliveryAgentRouter.get('/profile', isLoggedIn, getDeliveryAgentProfile);
 
 module.exports = deliveryAgentRouter;

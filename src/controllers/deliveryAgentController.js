@@ -58,7 +58,7 @@ exports.verifyDeliveryAgent = catchAsyncErrors(async (req, res, next) => {
 
         const hashedPassword = await bcrypt.hash(password, 10);
 
-        console.log('hello');
+
         const newUser = await DeliveryAgentModel.create({
             fullname: name,
             email: email,
@@ -80,7 +80,6 @@ exports.verifyDeliveryAgent = catchAsyncErrors(async (req, res, next) => {
     }
 });
 
-// Login User
 exports.loginDeliveryAgent = catchAsyncErrors(async (req, res, next) => {
     const { email, password } = req.body;
 
@@ -93,7 +92,7 @@ exports.loginDeliveryAgent = catchAsyncErrors(async (req, res, next) => {
     console.log(user.name)
 
     // Compare passwords
-    const isMatch = await bcrypt.compare(password, user.password);
+    const isMatch = bcrypt.compare(password, user.password);
     if (!isMatch) {
         return next(new ErrorHandler("Invalid email or password.", 400));
     }
@@ -124,3 +123,13 @@ exports.loginDeliveryAgent = catchAsyncErrors(async (req, res, next) => {
         user
     });
 });
+
+exports.getDeliveryAgentProfile = catchAsyncErrors(async (req, res, next) => {
+    const user = await DeliveryAgentModel.findOne({ _id: req.user.id }).select('-password');
+
+    if (!user) {
+        return next(new ErrorHandler("User not found.", 404));
+    }
+
+    res.status(200).json(user);
+})

@@ -32,10 +32,10 @@ const DeliveryAgentSchema = new mongoose.Schema({
         required: true
     },
     location: {
-        x: {
+        ltd: {
             type: Number,
         },
-        y: {
+        lng: {
             type: Number,
         }
     }

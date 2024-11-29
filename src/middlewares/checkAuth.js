@@ -7,7 +7,6 @@ const { generateAccessToken, generateRefreshToken } = require("../utils/SendToke
 // Middleware to check if the user is logged in using access token or refresh token
 const isLoggedIn = (req, res, next) => {
     const accessToken = req.cookies.token || req.headers['authorization']?.replace('Bearer ', '');
-    console.log("Access Token:", accessToken); // Check the token in the request
     const refreshToken = req.cookies.refreshToken || req.headers['authorization-refresh']?.replace('Bearer ', '');
 
     if (!accessToken) {
