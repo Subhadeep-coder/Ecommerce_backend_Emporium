@@ -138,26 +138,26 @@ exports.getDeliveryAgentProfile = catchAsyncErrors(async (req, res, next) => {
 
 exports.getNearestOrders = catchAsyncErrors(async (req, res, next) => {
     try {
-        const { location } = req.body;
+        const location = req.query;
 
-        if (
-            !location ||
-            !Array.isArray(location) ||
-            location.length !== 2 ||
-            typeof location[0] !== 'number' ||
-            typeof location[1] !== 'number' ||
-            location[0] < -180 || location[0] > 180 ||
-            location[1] < -90 || location[1] > 90
-        ) {
-            return res.status(400).json({ message: "Invalid location data. Provide [longitude, latitude] within valid ranges." });
-        }
+        // if (
+        //     !location ||
+        //     !Array.isArray(location) ||
+        //     location.length !== 2 ||
+        //     typeof location[0] !== 'number' ||
+        //     typeof location[1] !== 'number' ||
+        //     location[0] < -180 || location[0] > 180 ||
+        //     location[1] < -90 || location[1] > 90
+        // ) {
+        //     return res.status(400).json({ message: "Invalid location data. Provide [longitude, latitude] within valid ranges." });
+        // }
 
         const orders = await Order.aggregate([
             {
                 $geoNear: {
                     near: {
                         type: "Point",
-                        coordinates: [parseFloat(location[0]), parseFloat(location[1])]
+                        coordinates: [parseFloat(location.x), parseFloat(location.y)]
                     },
                     distanceField: "dist.calculated",
                     maxDistance: 1609000,
@@ -195,7 +195,7 @@ exports.assignOrder = catchAsyncErrors(async (req, res, next) => {
         }
     });
 
-    return res.status(400).json({
+    return res.status(200).json({
         message: "Assigned successfully",
         orderId: updatedOrder._id
     });
