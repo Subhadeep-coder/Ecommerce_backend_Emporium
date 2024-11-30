@@ -6,6 +6,7 @@ const { generateAccessToken2 } = require("../utils/SendToken");
 const jwt = require('jsonwebtoken');
 const ErrorHandler = require("../utils/ErrorHandler");
 const crypto = require("crypto");
+const mongoose = require("mongoose");
 
 
 const generateActivationCode = (user) => {
@@ -200,3 +201,60 @@ exports.assignOrder = catchAsyncErrors(async (req, res, next) => {
         orderId: updatedOrder._id
     });
 })
+
+exports.getOrderDetails = catchAsyncErrors(async (req, res, next) => {
+    const userId = req.user.id;
+
+    const orders = await Order.aggregate([
+        {
+            $match: {
+                deliveryAgent: mongoose.Types.ObjectId(userId),
+                deliveryStatus: { $ne: "delivered" }
+            }
+        }
+    ]);
+
+    if (!orders || orders.length === 0) {
+        return res.status(404).json({
+            success: false,
+            message: "No orders found for the delivery agent."
+        });
+    }
+
+    return res.status(200).json({
+        success: true,
+        orders
+    });
+});
+
+exports.markOrderAsDelivered = catchAsyncErrors(async (req, res, next) => {
+    const userId = req.user.id;
+    const { orderId } = req.params;
+
+    const updatedOrder = await Order.findOneAndUpdate(
+        {
+            _id: orderId,
+            deliveryAgent: mongoose.Types.ObjectId(userId),
+            deliveryStatus: { $ne: "delivered" },
+        },
+        {
+            $set: { deliveryStatus: "delivered" },
+        },
+        {
+            new: true,
+        }
+    );
+
+    if (!updatedOrder) {
+        return res.status(404).json({
+            success: false,
+            message: "Order not found or already delivered.",
+        });
+    }
+
+    return res.status(200).json({
+        success: true,
+        message: "Order marked as delivered successfully.",
+        order: updatedOrder,
+    });
+});
