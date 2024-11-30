@@ -1,21 +1,21 @@
 const express = require('express');
 const router = express.Router();
-const { 
-  createProduct, 
-  getAllProducts, 
-  updateProduct, 
-  deleteProduct, 
-  getSingleProduct, 
-  addToWishlist, 
-  getWishlist, 
-  removeFromWishlist, 
-  getSellerProducts, 
-  likeProduct, 
-  commentOnProduct, 
-  shareProduct, 
+const {
+  createProduct,
+  getAllProducts,
+  updateProduct,
+  deleteProduct,
+  getSingleProduct,
+  addToWishlist,
+  getWishlist,
+  removeFromWishlist,
+  getSellerProducts,
+  likeProduct,
+  commentOnProduct,
+  shareProduct,
   test,
-getProductsByStore,
-getAllComments
+  getProductsByStore,
+  getAllComments
 } = require('../controllers/productControllers');
 const { isAdmin, isSeller, isLoggedIn, isAdminOrSeller } = require('../middlewares/checkAuth');
 const upload = require("../config/multer-config");
@@ -29,7 +29,7 @@ router.post('/:id', isLoggedIn, getSingleProduct);
 // Other routes
 router.get('/all', getAllProducts);
 router.get('/', test);
-router.get('/seller-products',  getSellerProducts);
+router.get('/seller-products', getSellerProducts);
 
 // Wishlist routes (authenticated users only)
 router.post('/wishlist/add', isLoggedIn, addToWishlist);

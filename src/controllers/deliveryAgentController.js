@@ -137,36 +137,49 @@ exports.getDeliveryAgentProfile = catchAsyncErrors(async (req, res, next) => {
 })
 
 exports.getNearestOrders = catchAsyncErrors(async (req, res, next) => {
-    const { location } = req.body;
+    try {
+        const { location } = req.body;
 
-    const orders = await Order.aggregate([
-        {
-            $match: {
-                $or: [
-                    { deliveryAgent: null },
-                    { deliveryAgent: { $exists: false } }
-                ]
-            }
-        },
-        {
-            $geoNear: {
-                near: {
-                    type: "Point",
-                    coordinates: [parseFloat(location.x), parseFloat(location.y)]
-                },
-                spherical: true,
-                key: "location",
-                maxDistance: parseFloat(1000) * 1609,
-                distanceField: "dist.calculated"
-            }
+        if (
+            !location ||
+            !Array.isArray(location) ||
+            location.length !== 2 ||
+            typeof location[0] !== 'number' ||
+            typeof location[1] !== 'number' ||
+            location[0] < -180 || location[0] > 180 ||
+            location[1] < -90 || location[1] > 90
+        ) {
+            return res.status(400).json({ message: "Invalid location data. Provide [longitude, latitude] within valid ranges." });
         }
-    ]);
 
+        const orders = await Order.aggregate([
+            {
+                $geoNear: {
+                    near: {
+                        type: "Point",
+                        coordinates: [parseFloat(location[0]), parseFloat(location[1])]
+                    },
+                    distanceField: "dist.calculated",
+                    maxDistance: 1609000,
+                    spherical: true
+                }
+            },
+            {
+                $match: {
+                    $or: [
+                        { deliveryAgent: null },
+                        { deliveryAgent: { $exists: false } }
+                    ]
+                }
+            }
+        ]);
 
-    return res.status(200).json({
-        orders
-    });
-})
+        return res.status(200).json({ orders });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ message: "An error occurred while fetching orders.", error });
+    }
+});
 
 exports.assignOrder = catchAsyncErrors(async (req, res, next) => {
     const userId = req.user.id;

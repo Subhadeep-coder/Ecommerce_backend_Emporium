@@ -6,12 +6,13 @@ const { generateAccessToken, generateRefreshToken } = require("../utils/SendToke
 
 // Middleware to check if the user is logged in using access token or refresh token
 const isLoggedIn = (req, res, next) => {
-    const accessToken = req.cookies.token || req.headers['authorization']?.replace('Bearer ', '');
-    const refreshToken = req.cookies.refreshToken || req.headers['authorization-refresh']?.replace('Bearer ', '');
-
+    const accessToken = req.headers['authorization']?.replace('Bearer ', '');
+    //const accessToken = req.cookies.token
+    //  const refreshToken =req.headers['authorization-refresh']?.replace('Bearer ', '');
+    console.log(accessToken);
     if (!accessToken) {
-        return res.status(401).json({ 
-            message: 'Access denied. You need to log in to perform this action.' 
+        return res.status(401).json({
+            message: 'Access denied. You need to log in to perform this action.'
         });
     }
 
@@ -21,20 +22,20 @@ const isLoggedIn = (req, res, next) => {
         next();
     } catch (error) {
         console.error("Error verifying token:", error);
-        if (error.name === 'TokenExpiredError' && refreshToken) {
-            try {
-                const decodedRefresh = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
-                const user = { id: decodedRefresh.id, isSeller: decodedRefresh.isSeller };
-                const newAccessToken = generateAccessToken(user);
-                res.cookie('token', newAccessToken, { httpOnly: true, secure: process.env.NODE_ENV === 'production' });
-                req.user = decodedRefresh;
-                next();
-            } catch (refreshError) {
-                return res.status(403).json({ message: 'Invalid refresh token. Please log in again.' });
-            }
-        } else {
-            return res.status(400).json({ message: 'Invalid or expired access token.' });
-        }
+        // if (error.name === 'TokenExpiredError') {
+        //     try {
+        //        // const decodedRefresh = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
+        //      //   const user = { id: decodedRefresh.id, isSeller: decodedRefresh.isSeller };
+        //         const newAccessToken = generateAccessToken(user);
+        //         res.cookie('token', newAccessToken, { httpOnly: true, secure: process.env.NODE_ENV === 'production' });
+        //         req.user = decodedRefresh;
+        //         next();
+        //     } catch (refreshError) {
+        //         return res.status(403).json({ message: 'Invalid refresh token. Please log in again.' });
+        //     }
+        // } else {
+        return res.status(400).json({ message: 'Invalid or expired access token.' });
+        // }
     }
 };
 

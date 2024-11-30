@@ -29,11 +29,13 @@ const orderSchema = new Schema({
     required: true
   },
   location: {
-    x: {
-      type: Number,
-    },
-    y: {
-      type: Number
+    type: [Number],
+    required: true,
+    validate: {
+      validator: function (coords) {
+        return coords.length === 2;
+      },
+      message: "Coordinates must contain exactly [longitude, latitude]."
     }
   },
   status: {
