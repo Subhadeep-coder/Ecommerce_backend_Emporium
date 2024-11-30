@@ -108,6 +108,14 @@ exports.getOrdersByStore = catchAsyncErrors(async (req, res, next) => {
   const orders = await Order.aggregate([
     {
       $lookup: {
+        from: "users",
+        localField: "userId",
+        foreignField: "_id",
+        as: "customerDetails"
+      }
+    },
+    {
+      $lookup: {
         from: "products",
         localField: "products.productId",
         foreignField: "_id",
@@ -146,7 +154,8 @@ exports.getOrdersByStore = catchAsyncErrors(async (req, res, next) => {
         paymentStatus: { $first: "$paymentStatus" },
         deliveryStatus: { $first: "$deliveryStatus" },
         createdAt: { $first: "$createdAt" },
-        updatedAt: { $first: "$updatedAt" }
+        updatedAt: { $first: "$updatedAt" },
+        customerDetails: { $first: "$customerDetails" }
       }
     },
     {

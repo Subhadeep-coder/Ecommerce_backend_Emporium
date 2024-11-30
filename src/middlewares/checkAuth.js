@@ -7,9 +7,7 @@ const { generateAccessToken, generateRefreshToken } = require("../utils/SendToke
 // Middleware to check if the user is logged in using access token or refresh token
 const isLoggedIn = (req, res, next) => {
     const accessToken = req.headers['authorization']?.replace('Bearer ', '');
-    //const accessToken = req.cookies.token
-    //  const refreshToken =req.headers['authorization-refresh']?.replace('Bearer ', '');
-    console.log(accessToken);
+
     if (!accessToken) {
         return res.status(401).json({
             message: 'Access denied. You need to log in to perform this action.'

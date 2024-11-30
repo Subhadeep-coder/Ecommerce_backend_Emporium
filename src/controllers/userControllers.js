@@ -1,15 +1,15 @@
 const bcrypt = require('bcrypt');
 const { User, validateUser } = require('../models/userModel'); // Import the User model and validation
-const {productModel, productValidation } = require('../models/productModel'); // Import the Product model and validation
-const Notification  = require('../models/notification-Model'); // Import the Product model and validation
+const { productModel, productValidation } = require('../models/productModel'); // Import the Product model and validation
+const Notification = require('../models/notification-Model'); // Import the Product model and validation
 const { catchAsyncErrors } = require("../middlewares/catchAsyncError");
 const ErrorHandler = require("../utils/ErrorHandler");
-const { generateAccessToken, generateRefreshToken, generateAccessToken2 } = require("../utils/SendToken");  
+const { generateAccessToken, generateRefreshToken, generateAccessToken2 } = require("../utils/SendToken");
 const sendMail = require("../utils/nodemailer")
 const crypto = require("crypto")
 const jwt = require('jsonwebtoken');
 // Import the token generation function
-exports.test = (req, res, next) =>{
+exports.test = (req, res, next) => {
     res.json({ message: 'hello user' });
 
 }
@@ -108,7 +108,7 @@ exports.verifyGoogleToken = async (req, res) => {
 
 const generateActivationCode = (user) => {
     const activationCode = crypto.randomInt(1000000).toString();
-    
+
     const token = jwt.sign(
         { user, activationCode },
         process.env.JWT_SECRET,  // Ensure this is set in your environment variables
@@ -120,9 +120,9 @@ const generateActivationCode = (user) => {
 // Step 1: Register User and Send Activation Code
 exports.registerUserStepOne = catchAsyncErrors(async (req, res, next) => {
     const { name, username, email, password, bio, interests, isSeller, storeName, storeDescription } = req.body;
-    
-    const { profilePicBuffer, profilePicMimetype } = req.files?.profilePic ? req.files.profilePic[0] : {};  
-    const { storeImageBuffer, storeImageMimetype } = req.files?.storeImage ? req.files.storeImage[0] : {};  
+
+    const { profilePicBuffer, profilePicMimetype } = req.files?.profilePic ? req.files.profilePic[0] : {};
+    const { storeImageBuffer, storeImageMimetype } = req.files?.storeImage ? req.files.storeImage[0] : {};
 
     // Validate user data
     const { error } = validateUser(req.body);
@@ -135,25 +135,27 @@ exports.registerUserStepOne = catchAsyncErrors(async (req, res, next) => {
         return next(new ErrorHandler("User already registered with this email.", 400));
     }
 
-    const existingUsernameUser = await User.findOne({ username });   
+    const existingUsernameUser = await User.findOne({ username });
     if (existingUsernameUser) {
         return next(new ErrorHandler("Username is already taken.", 400));
     }
 
     // Generate activation token and code
-    const user = { name, username, email, password, bio, interests, isSeller, storeName, storeDescription, 
-        profilePicBuffer, profilePicMimetype, storeImageBuffer, storeImageMimetype};  // Prepare a user object for token generation
+    const user = {
+        name, username, email, password, bio, interests, isSeller, storeName, storeDescription,
+        profilePicBuffer, profilePicMimetype, storeImageBuffer, storeImageMimetype
+    };  // Prepare a user object for token generation
     const { token: activationToken, activationCode } = generateActivationCode(user);
 
     // Save user details and images in session along with activation code
-    req.session.userDetails = { 
-        name, username, email, password, bio, interests, isSeller, storeName, storeDescription, 
+    req.session.userDetails = {
+        name, username, email, password, bio, interests, isSeller, storeName, storeDescription,
         profilePicBuffer, profilePicMimetype, storeImageBuffer, storeImageMimetype
     };
     req.session.activationCode = activationCode;
     req.session.activationTokenExpire = Date.now() + 24 * 60 * 60 * 1000; // Token expires in 1 day
 
-    await sendMail(email, activationCode);  // Send activation code via email
+    await sendMail({ email, template: "send-otp.ejs", data: { activationCode } });  // Send activation code via email
     res.status(200).json({ message: "Activation code sent to your email.", activationToken });
 });
 // Step 2: Confirm Registration Using Activation Token
@@ -209,8 +211,8 @@ exports.registerUserStepTwo = catchAsyncErrors(async (req, res, next) => {
         const refreshToken = generateRefreshToken({ id: newUser._id, isSeller: newUser.isSeller });
 
         // Store the refresh token in an HTTP-only cookie
-        res.cookie('refreshToken', refreshToken, { 
-            httpOnly: true, 
+        res.cookie('refreshToken', refreshToken, {
+            httpOnly: true,
             expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)  // Refresh token expires in 7 days
         });
 
@@ -357,15 +359,15 @@ exports.loginSeller = catchAsyncErrors(async (req, res, next) => {
 exports.logoutUser = catchAsyncErrors(async (req, res, next) => {
 
     console.log('HELLOOOOOO');
-    
+
     // Clear cookies
     res.cookie('refreshToken', null, {
-        expires: new Date(Date.now()), 
+        expires: new Date(Date.now()),
         httpOnly: true
     });
 
     res.cookie('token', null, {
-        expires: new Date(Date.now()), 
+        expires: new Date(Date.now()),
         httpOnly: true
     });
 
@@ -379,11 +381,11 @@ exports.getUserProfile = catchAsyncErrors(async (req, res, next) => {
     console.log('-------------------------')
 
     const user = await User.findOne({ _id: req.user.id }).select('-password');
-    
+
     console.log(req.user.id);
     console.log(user);
-    
-    
+
+
 
     if (!user) {
         return next(new ErrorHandler("User not found.", 404));
@@ -393,7 +395,7 @@ exports.getUserProfile = catchAsyncErrors(async (req, res, next) => {
 });
 exports.updateProfile = catchAsyncErrors(async (req, res, next) => {
     const { bio, name, isSeller, interests, storeName, storeDescription } = req.body;
-    const { buffer: profilePicBuffer, mimetype: profilePicMimetype } =  req.files?.profilePic ? req.files.profilePic[0] : {};
+    const { buffer: profilePicBuffer, mimetype: profilePicMimetype } = req.files?.profilePic ? req.files.profilePic[0] : {};
     const { buffer: storeImageBuffer, mimetype: storeImageMimetype } = req.files?.storeImage ? req.files.storeImage[0] : {}; // Extract store image
 
     const updateFields = {
@@ -427,7 +429,7 @@ exports.updateProfile = catchAsyncErrors(async (req, res, next) => {
         return next(new ErrorHandler("User not found.", 404));
     }
 
-    const responseMessage = user.isSeller 
+    const responseMessage = user.isSeller
         ? { message: "Seller profile updated successfully", user, sellerDetails: { storeName: user.storeName, storeDescription: user.storeDescription } }
         : { message: "User profile updated successfully", user };
 
@@ -576,10 +578,10 @@ exports.unfollowSeller = catchAsyncErrors(async (req, res, next) => {
     // Remove the seller from the user's following
     await User.findByIdAndUpdate(userId, { $pull: { following: sellerId } }, { new: true });
 
-    
+
     const io = req.app.get('socketio');
-    await sendNotification(seller._id,` ${req.user.id} unfollowed you.`, 'unfollow', userId, null, io);
-    
+    await sendNotification(seller._id, ` ${req.user.id} unfollowed you.`, 'unfollow', userId, null, io);
+
 
     res.status(200).json({ message: "Seller unfollowed successfully." });
 });
@@ -656,7 +658,7 @@ exports.getAllStores = async (req, res) => {
     try {
         // Find all users who are sellers and return storeName and storeImage fields
         const stores = await User.find({ isSeller: true }, 'storeName storeImage');
-        
+
         // Send the response with the store names and images
         res.status(200).json({
             success: true,
@@ -681,16 +683,16 @@ exports.searchStore = catchAsyncErrors(async (req, res, next) => {
     try {
         // Search for sellers with a matching store name
         const stores = await User.find(
-            { isSeller: true,storeName: { $regex: storeName, $options: "i" }} ,'storeName storeImage'               
-            );
+            { isSeller: true, storeName: { $regex: storeName, $options: "i" } }, 'storeName storeImage'
+        );
 
         if (stores.length === 0) {
             return res.status(404).json({ message: "No stores found matching your search." });
         }
 
         res.status(200).json({
-           success: true,
-            data :stores
+            success: true,
+            data: stores
         });
     } catch (error) {
         console.error("Error in searching stores:", error);
