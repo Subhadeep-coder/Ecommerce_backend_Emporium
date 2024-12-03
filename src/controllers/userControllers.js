@@ -155,7 +155,7 @@ exports.registerUserStepOne = catchAsyncErrors(async (req, res, next) => {
     req.session.activationCode = activationCode;
     req.session.activationTokenExpire = Date.now() + 24 * 60 * 60 * 1000; // Token expires in 1 day
 
-    await sendMail({ email, template: "send-otp.ejs", data: { activationCode, date: new Date().toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' }) } });  // Send activation code via email
+    await sendMail({ email, template: "send-otp.ejs", data: { name, activationCode, date: new Date().toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' }) } });  // Send activation code via email
     res.status(200).json({ message: "Activation code sent to your email.", activationToken });
 });
 // Step 2: Confirm Registration Using Activation Token
