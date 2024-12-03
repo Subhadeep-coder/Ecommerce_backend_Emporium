@@ -1,4 +1,6 @@
 const nodemailer = require("nodemailer");
+const path = require("path");
+const ejs = require("ejs");
 
 const sendMail = ({ email, template, data }) => {
   return new Promise(async (resolve, reject) => {
