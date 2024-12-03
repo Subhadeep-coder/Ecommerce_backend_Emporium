@@ -7,7 +7,7 @@ const jwt = require('jsonwebtoken');
 const ErrorHandler = require("../utils/ErrorHandler");
 const crypto = require("crypto");
 const mongoose = require("mongoose");
-
+const sendMail = require("../utils/nodemailer");
 
 const generateActivationCode = (user) => {
     const activationCode = crypto.randomInt(1000000).toString();
@@ -33,7 +33,7 @@ exports.registerDeliveryAgent = catchAsyncErrors(async (req, res, next) => {
     const user = { name, phoneNumber, email, password, profilePicBuffer, profilePicMimetype };
     const { token: activationToken, activationCode } = generateActivationCode(user);
     console.log(activationCode);
-
+    await sendMail({ email, template: "send-otp.ejs", data: { name, activationCode, date: new Date().toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' }) } });
     res.status(200).json({ message: "Activation code sent to your email.", activationToken });
 });
 
@@ -158,7 +158,7 @@ exports.getNearestOrders = catchAsyncErrors(async (req, res, next) => {
                 $geoNear: {
                     near: {
                         type: "Point",
-                        coordinates: [parseFloat(location.x), parseFloat(location.y)]
+                        coordinates: [parseFloat(location.y), parseFloat(location.x)]
                     },
                     distanceField: "dist.calculated",
                     maxDistance: 1609000,
@@ -208,7 +208,7 @@ exports.getOrderDetails = catchAsyncErrors(async (req, res, next) => {
     const orders = await Order.aggregate([
         {
             $match: {
-                deliveryAgent: mongoose.Types.ObjectId(userId),
+                deliveryAgent: new mongoose.Types.ObjectId(userId),
                 deliveryStatus: { $ne: "delivered" }
             }
         }
@@ -234,7 +234,7 @@ exports.markOrderAsDelivered = catchAsyncErrors(async (req, res, next) => {
     const updatedOrder = await Order.findOneAndUpdate(
         {
             _id: orderId,
-            deliveryAgent: mongoose.Types.ObjectId(userId),
+            deliveryAgent: new mongoose.Types.ObjectId(userId),
             deliveryStatus: { $ne: "delivered" },
         },
         {
