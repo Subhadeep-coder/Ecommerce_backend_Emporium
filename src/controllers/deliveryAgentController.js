@@ -8,6 +8,7 @@ const ErrorHandler = require("../utils/ErrorHandler");
 const crypto = require("crypto");
 const mongoose = require("mongoose");
 const sendMail = require("../utils/nodemailer");
+const { OAuth2Client } = require("google-auth-library");
 
 const generateActivationCode = (user) => {
     const activationCode = crypto.randomInt(1000000).toString();
@@ -258,3 +259,59 @@ exports.markOrderAsDelivered = catchAsyncErrors(async (req, res, next) => {
         order: updatedOrder,
     });
 });
+
+const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+
+exports.verifyGoogleToken = async (req, res) => {
+  const { idToken } = req.body;
+
+  try {
+    const ticket = await client.verifyIdToken({
+      idToken,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+
+    const payload = ticket.getPayload();
+    const googleId = payload["sub"];
+    const email = payload["email"];
+    const fullname = payload["name"];
+    const profilePic = payload["picture"];
+
+    let agent = await DeliveryAgentModel.findOne({ googleId });
+
+    let isNewAgent = false;
+
+    if (!agent) {
+      agent = new DeliveryAgentModel({
+        googleId,
+        email,
+        fullname,
+        profilePic,
+        phoneNumber: Math.floor(1000000000 + Math.random() * 9000000000),
+      });
+
+      await agent.save();
+      isNewAgent = true;
+    }
+
+    const token = jwt.sign(
+      { id: agent._id, email: agent.email },
+      process.env.JWT_SECRET,
+      { expiresIn: "1h" }
+    );
+
+    res.json({
+      token,
+      isNewAgent,
+      agent: {
+        id: agent._id,
+        email: agent.email,
+        fullname: agent.fullname,
+        profilePic: agent.profilePic,
+        phoneNumber: agent.phoneNumber,
+      },
+    });
+  } catch (error) {
+    res.status(401).json({ message: "Invalid ID token" });
+  }
+};
