@@ -59,16 +59,16 @@ app.use(expressSession({
 }));
 
 // Initializing Socket.IO on the HTTP server with CORS settings
-const io = new Server(server, {
-    cors: {
-        origin: process.env.CLIENT_URL,  // Your frontend origin (e.g., "http://localhost:3000")
-        methods: ["GET", "POST"],
-        credentials: true // Allow credentials for Socket.IO
-    }
-});
+// const io = new Server(server, {
+//     cors: {
+//         origin: process.env.CLIENT_URL,  // Your frontend origin (e.g., "http://localhost:3000")
+//         methods: ["GET", "POST"],
+//         credentials: true // Allow credentials for Socket.IO
+//     }
+// });
 
 // Setup Socket.IO with the existing function
-setupSocket(io);
+// setupSocket(io);
 
 // Define routes
 app.use("/", userRouter);

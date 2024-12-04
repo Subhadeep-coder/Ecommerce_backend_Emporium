@@ -6,8 +6,8 @@ const passport = require("passport");
 const deliveryAgentRouter = express.Router();
 
 deliveryAgentRouter.post('/signup', upload.fields([
-    { name: "profilePic", maxCount: 1 },
-    { name: "storeImage", maxCount: 1 }
+  { name: "profilePic", maxCount: 1 },
+  { name: "storeImage", maxCount: 1 }
 ]), registerDeliveryAgent);
 deliveryAgentRouter
 deliveryAgentRouter.post('/verify', verifyDeliveryAgent);
@@ -19,7 +19,7 @@ deliveryAgentRouter.get('/get-current-order', isLoggedIn, getOrderDetails);
 deliveryAgentRouter.put('/update-delivery-status/:orderId', isLoggedIn, markOrderAsDelivered);
 deliveryAgentRouter.get(
   "/google",
-  passport.authenticate("google", { scope: ["profile", "email"] })
+  passport.authenticate("google", { scope: ["profile", "email", "https://www.googleapis.com/auth/user.phonenumbers.read"  ] })
 );
 
 deliveryAgentRouter.get(
