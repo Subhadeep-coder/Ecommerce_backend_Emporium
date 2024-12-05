@@ -33,6 +33,7 @@ const DeliveryAgentSchema = new mongoose.Schema({
     },
     phoneNumber: {
         type: Number,
+        default: null,
         required: true
     },
     isAvailable: {

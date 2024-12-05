@@ -128,6 +128,42 @@ exports.loginDeliveryAgent = catchAsyncErrors(async (req, res, next) => {
     });
 });
 
+exports.updateProfile = catchAsyncErrors(async (req, res, next) => {
+    const { name, phoneNumber } = req.body;
+    const { buffer: profilePicBuffer, mimetype: profilePicMimetype } = req.files?.profilePic ? req.files.profilePic[0] : {};
+    const { buffer: storeImageBuffer, mimetype: storeImageMimetype } = req.files?.storeImage ? req.files.storeImage[0] : {};
+
+    const updateFields = {
+        ...(name && { name }),
+        ...(phoneNumber && { phoneNumber }),
+    };
+
+    if (profilePicBuffer && profilePicMimetype) {
+        updateFields.profilePic = profilePicBuffer;
+        updateFields.imageMimeType = profilePicMimetype;
+    }
+
+    if (isSeller && storeImageBuffer && storeImageMimetype) {
+        updateFields.storeImage = storeImageBuffer;
+        updateFields.storeImageMimeType = storeImageMimetype;
+    }
+
+    const user = await DeliveryAgentModel.findByIdAndUpdate(
+        req.user.id,
+        updateFields,
+        { new: true, runValidators: true }
+    ).select('-password');
+
+    if (!user) {
+        return next(new ErrorHandler("User not found.", 404));
+    }
+
+    res.json({
+        success: true,
+        message: `Profile Updated`
+    });
+});
+
 exports.getDeliveryAgentProfile = catchAsyncErrors(async (req, res, next) => {
     const user = await DeliveryAgentModel.findOne({ _id: req.user.id }).select('-password');
 
@@ -275,8 +311,8 @@ exports.verifyGoogleToken = async (req, res) => {
         const googleId = payload["sub"];
         const email = payload["email"];
         const fullname = payload["name"];
-        const profilePic = payload["picture"];
-        // const phoneNumber = payload["phone_number"] || null;
+        // const profilePic = payload["picture"];
+        const phoneNumber = payload["phone_number"] || null;
 
         let agent = await DeliveryAgentModel.findOne({ googleId });
 
