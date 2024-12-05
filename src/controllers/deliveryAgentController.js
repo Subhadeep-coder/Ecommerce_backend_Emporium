@@ -312,7 +312,7 @@ exports.verifyGoogleToken = async (req, res) => {
         const email = payload["email"];
         const fullname = payload["name"];
         // const profilePic = payload["picture"];
-        // const phoneNumber = payload["phone_number"] || null;
+        const phoneNumber = payload["phone_number"] || 1234567890
 
         let agent = await DeliveryAgentModel.findOne({ googleId });
 
@@ -324,7 +324,7 @@ exports.verifyGoogleToken = async (req, res) => {
                 email,
                 fullname,
                 // profilePic,
-                // phoneNumber,
+                phoneNumber,
             });
 
             await agent.save();
@@ -345,7 +345,7 @@ exports.verifyGoogleToken = async (req, res) => {
                 email: agent.email,
                 fullname: agent.fullname,
                 // profilePic: agent.profilePic,
-                // phoneNumber: agent.phoneNumber,
+                phoneNumber: agent.phoneNumber,
             },
         });
     } catch (error) {
