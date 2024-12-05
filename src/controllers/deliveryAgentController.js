@@ -128,41 +128,56 @@ exports.loginDeliveryAgent = catchAsyncErrors(async (req, res, next) => {
     });
 });
 
-exports.updateProfile = catchAsyncErrors(async (req, res, next) => {
-    const { name, phoneNumber } = req.body;
-    const { buffer: profilePicBuffer, mimetype: profilePicMimetype } = req.files?.profilePic ? req.files.profilePic[0] : {};
-    const { buffer: storeImageBuffer, mimetype: storeImageMimetype } = req.files?.storeImage ? req.files.storeImage[0] : {};
+const multer = require("multer");
+const upload = multer();
 
-    const updateFields = {
-        ...(name && { name }),
-        ...(phoneNumber && { phoneNumber }),
-    };
+exports.updateProfile = [
+    upload.fields([{ name: "profilePic", maxCount: 1 }]),
+    catchAsyncErrors(async (req, res, next) => {
+        const { fullname, phoneNumber } = req.body;
+        const profilePic = req.files?.profilePic ? req.files.profilePic[0] : null;
 
-    if (profilePicBuffer && profilePicMimetype) {
-        updateFields.profilePic = profilePicBuffer;
-        updateFields.imageMimeType = profilePicMimetype;
-    }
+        console.log("Request Body:", req.body);
+        console.log("Request Files:", req.files);
 
-    if (isSeller && storeImageBuffer && storeImageMimetype) {
-        updateFields.storeImage = storeImageBuffer;
-        updateFields.storeImageMimeType = storeImageMimetype;
-    }
+        const ph = phoneNumber ? Number(phoneNumber.replace(/\D/g, "")) : undefined;
+        console.log("Parsed Phone Number (ph):", ph);
 
-    const user = await DeliveryAgentModel.findByIdAndUpdate(
-        req.user.id,
-        updateFields,
-        { new: true, runValidators: true }
-    ).select('-password');
+        const updateFields = {
+            ...(fullname && { fullname }),
+            ...(ph !== undefined && !isNaN(ph) && { phoneNumber: ph }),
+        };
 
-    if (!user) {
-        return next(new ErrorHandler("User not found.", 404));
-    }
+        if (profilePic) {
+            updateFields.profilePic = profilePic.buffer;
+            updateFields.imageMimeType = profilePic.mimetype;
+        }
 
-    res.json({
-        success: true,
-        message: `Profile Updated`
-    });
-});
+        console.log("Update Fields Object:", updateFields);
+
+        try {
+            const user = await DeliveryAgentModel.findByIdAndUpdate(
+                req.user.id,
+                updateFields,
+                { new: true, runValidators: true }
+            ).select("-password");
+
+            if (!user) {
+                return next(new ErrorHandler("User not found.", 404));
+            }
+
+            res.json({
+                success: true,
+                message: "Profile Updated",
+                user,
+            });
+        } catch (error) {
+            console.error("Update Error:", error);
+            return next(new ErrorHandler(error.message, 400));
+        }
+    }),
+];
+
 
 exports.getDeliveryAgentProfile = catchAsyncErrors(async (req, res, next) => {
     const user = await DeliveryAgentModel.findOne({ _id: req.user.id }).select('-password');
