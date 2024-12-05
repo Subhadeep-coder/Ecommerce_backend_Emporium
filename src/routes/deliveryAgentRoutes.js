@@ -1,5 +1,5 @@
 const express = require('express');
-const { registerDeliveryAgent, verifyDeliveryAgent, loginDeliveryAgent, getDeliveryAgentProfile, getNearestOrders, assignOrder, getOrderDetails, markOrderAsDelivered, verifyGoogleToken } = require('../controllers/deliveryAgentController');
+const { registerDeliveryAgent, verifyDeliveryAgent, loginDeliveryAgent, getDeliveryAgentProfile, getNearestOrders, assignOrder, getOrderDetails, markOrderAsDelivered, verifyGoogleToken, updateProfile } = require('../controllers/deliveryAgentController');
 const upload = require("../config/multer-config");
 const { isLoggedIn } = require('../middlewares/checkAuth');
 const passport = require("passport");
@@ -12,6 +12,7 @@ deliveryAgentRouter.post('/signup', upload.fields([
 deliveryAgentRouter
 deliveryAgentRouter.post('/verify', verifyDeliveryAgent);
 deliveryAgentRouter.post('/login', loginDeliveryAgent);
+deliveryAgentRouter.put('/update-profile',isLoggedIn, updateProfile);
 deliveryAgentRouter.get('/profile', isLoggedIn, getDeliveryAgentProfile);
 deliveryAgentRouter.get('/get-nearest-orders', isLoggedIn, getNearestOrders);
 deliveryAgentRouter.post('/assign-order', isLoggedIn, assignOrder);
