@@ -103,6 +103,71 @@ exports.verifyGoogleToken = async (req, res) => {
 };
 
 
+exports.verifyGoogleTokenForSeller = async (req, res) => {
+    const { idToken, } = req.body;
+
+    try {
+        const ticket = await client.verifyIdToken({
+            idToken: idToken,
+            audience: process.env.GOOGLE_CLIENT_IDPHONE,
+        });
+
+        const payload = ticket.getPayload();
+        const googleId = payload['sub'];
+        const email = payload['email'];
+        const name = payload['name'];
+        const profileImage = payload['picture'];
+
+        let user = await User.findOne({ googleId });
+
+        let isNewUser = false;
+
+        if (!user) {
+            user = new User({
+                googleId,
+                email,
+                name,
+                profilePic: profileImage,
+                username: email.split('@')[0],
+                isSeller: true
+                // Other user fields if required
+            });
+
+            await user.save();
+            isNewUser = true;
+        }
+
+        console.log("hello1")
+        if (!user.isSeller) {
+            return {
+                success: false,
+                message: "You're not seller"
+            };
+        }
+        // Generate a JWT token (matching your other routes)
+        const token = generateAccessToken(user);
+
+        res.json({
+            token,
+            isNewUser,
+            user: {
+                id: user._id,
+                email: user.email,
+                username: user.username,
+                name: user.name,
+                profileImage: user.profilePic,
+                isSeller: user.isSeller,
+                storeImage: user.storeImage,
+                storeName: user.storeName,
+                storeDescription: user.storeDescription,
+            }
+        });
+
+    } catch (error) {
+        console.error('Error verifying ID token:', error);
+        res.status(401).json({ message: 'Invalid ID token' });
+    }
+};
 
 
 
