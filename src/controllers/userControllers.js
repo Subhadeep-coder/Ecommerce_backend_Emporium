@@ -129,6 +129,8 @@ exports.verifyGoogleTokenForSeller = async (req, res) => {
                 name,
                 profilePic: profileImage,
                 username: email.split('@')[0],
+                isSeller: true,
+                storeName: "",
                 // Other user fields if required
             });
 
