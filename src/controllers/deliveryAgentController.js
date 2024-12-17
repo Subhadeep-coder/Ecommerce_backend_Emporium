@@ -9,7 +9,7 @@ const crypto = require("crypto");
 const mongoose = require("mongoose");
 const sendMail = require("../utils/nodemailer");
 const { OAuth2Client } = require("google-auth-library");
-const  Payment = require("../models/paymentModel");
+const Payment = require("../models/paymentModel");
 const generateActivationCode = (user) => {
     const activationCode = crypto.randomInt(1000000).toString();
 
@@ -372,144 +372,380 @@ exports.verifyGoogleToken = async (req, res) => {
         res.status(401).json({ message: "Invalid ID token" });
     }
     const fetchCompletedPayments = async (userId) => {
-  try {
-    const completedPayments = await Payment.aggregate([
-      {
-        // Lookup products for the given user
-        $lookup: {
-          from: 'products',
-          localField: 'productId',
-          foreignField: 'productId',
-          as: 'productDetails',
-        },
-      },
-      {
-        // Unwind the productDetails array
-        $unwind: '$productDetails',
-      },
-      {
-        // Match the userId in the productDetails and filter completed payments
-        $match: {
-          'productDetails.userId': userId,
-          status: 'completed',
-        },
-      },
-      {
-        // Optional: Project required fields
-        $project: {
-          _id: 0,
-          orderId: 1,
-          productId: 1,
-          status: 1,
-          'productDetails.name': 1,
-        },
-      },
-    ]);
+        try {
+            const completedPayments = await Payment.aggregate([
+                {
+                    // Lookup products for the given user
+                    $lookup: {
+                        from: 'products',
+                        localField: 'productId',
+                        foreignField: 'productId',
+                        as: 'productDetails',
+                    },
+                },
+                {
+                    // Unwind the productDetails array
+                    $unwind: '$productDetails',
+                },
+                {
+                    // Match the userId in the productDetails and filter completed payments
+                    $match: {
+                        'productDetails.userId': userId,
+                        status: 'completed',
+                    },
+                },
+                {
+                    // Optional: Project required fields
+                    $project: {
+                        _id: 0,
+                        orderId: 1,
+                        productId: 1,
+                        status: 1,
+                        'productDetails.name': 1,
+                    },
+                },
+            ]);
 
-    return completedPayments;
-  } catch (error) {
-    console.error('Error fetching completed payments:', error);
-    throw error;
-  }
-};
+            return completedPayments;
+        } catch (error) {
+            console.error('Error fetching completed payments:', error);
+            throw error;
+        }
+    };
 
 };
 
 exports.fetchCompletedPayments = async (req, res) => {
     try {
-      const userId = req.user.id;
-    console.log(userId);
-      const completedPayments = await Payment.aggregate([
-        {
-          // Lookup orders for the given payment
-          $lookup: {
-            from: 'orders',
-            localField: 'orderId',
-            foreignField: '_id',
-            as: 'orderDetails',
-          },
-        },
-        {
-          // Unwind the orderDetails array
-          $unwind: '$orderDetails',
-        },
-        {
-          // Unwind the products array inside orderDetails
-          $unwind: '$orderDetails.products',
-        },
-        {
-          // Lookup products based on productId from orderDetails
-          $lookup: {
-            from: 'products',
-            localField: 'orderDetails.products.productId',
-            foreignField: '_id',
-            as: 'productDetails',
-          },
-        },
-        {
-          // Unwind the productDetails array
-          $unwind: '$productDetails',
-        },
-        {
-            // Exclude the images field from productDetails
-            $project: {
-                'productDetails.images': 0,
+        const userId = req.user.id;
+        console.log(userId);
+        const completedPayments = await Payment.aggregate([
+            {
+                // Lookup orders for the given payment
+                $lookup: {
+                    from: 'orders',
+                    localField: 'orderId',
+                    foreignField: '_id',
+                    as: 'orderDetails',
+                },
             },
-        },
-        {
-          // Match the userId and status
-          $match: {
-             'productDetails.user': new mongoose.Types.ObjectId(userId),
-            status: 'Completed',
-          },
-        },
-        // {
-        //     $project: {
-        //       orderId: 1,
-        //       'orderDetails.products': 1,
-        //       productDetails: 1,
-        //       status: 1,
-        //     },
-        //   },
-        {
-            // Group to calculate total revenue and total items sold
-            $group: {
-                _id: null,
-                totalRevenue: { $sum: '$amount' }, // Sum the amounts for revenue
-                totalItemsSold: { $sum: '$orderDetails.products.quantity' }, // Sum product quantities for total items sold
-                data: { $push: '$$ROOT' }, // Preserve all original documents
+            {
+                // Unwind the orderDetails array
+                $unwind: '$orderDetails',
             },
-        },
-        {
-            // Unwind data back to individual documents
-            $unwind: '$data',
-        },
-        {
-            // Add totalRevenue and totalItemsSold to each document
-            $addFields: {
-                'data.totalRevenue': '$totalRevenue',
-                'data.totalItemsSold': '$totalItemsSold',
+            {
+                // Unwind the products array inside orderDetails
+                $unwind: '$orderDetails.products',
             },
-        },
-        {
-            // Restore the original structure
-            $replaceRoot: {
-                newRoot: '$data',
+            {
+                // Lookup products based on productId from orderDetails
+                $lookup: {
+                    from: 'products',
+                    localField: 'orderDetails.products.productId',
+                    foreignField: '_id',
+                    as: 'productDetails',
+                },
             },
-        },
-      ]);
-  
-      // Log the productDetails for debugging
-      //console.dir(completedPayments, { depth: null });
-  
-      return res.json({
-        message: 'Completed Payments',
-        data: completedPayments,
-      });
+            {
+                // Unwind the productDetails array
+                $unwind: '$productDetails',
+            },
+            {
+                // Exclude the images field from productDetails
+                $project: {
+                    'productDetails.images': 0,
+                },
+            },
+            {
+                // Match the userId and status
+                $match: {
+                    'productDetails.user': new mongoose.Types.ObjectId(userId),
+                    status: 'Completed',
+                },
+            },
+            // {
+            //     $project: {
+            //       orderId: 1,
+            //       'orderDetails.products': 1,
+            //       productDetails: 1,
+            //       status: 1,
+            //     },
+            //   },
+            {
+                // Group to calculate total revenue and total items sold
+                $group: {
+                    _id: null,
+                    totalRevenue: { $sum: '$amount' }, // Sum the amounts for revenue
+                    totalItemsSold: { $sum: '$orderDetails.products.quantity' }, // Sum product quantities for total items sold
+                    data: { $push: '$$ROOT' }, // Preserve all original documents
+                },
+            },
+            {
+                // Unwind data back to individual documents
+                $unwind: '$data',
+            },
+            {
+                // Add totalRevenue and totalItemsSold to each document
+                $addFields: {
+                    'data.totalRevenue': '$totalRevenue',
+                    'data.totalItemsSold': '$totalItemsSold',
+                },
+            },
+            {
+                // Restore the original structure
+                $replaceRoot: {
+                    newRoot: '$data',
+                },
+            },
+        ]);
+
+        // Log the productDetails for debugging
+        //console.dir(completedPayments, { depth: null });
+
+        return res.json({
+            message: 'Completed Payments',
+            data: completedPayments,
+        });
     } catch (error) {
-      console.error('Error fetching completed payments:', error);
-      return res.status(500).json({ message: 'Internal Server Error', error: error.message });
+        console.error('Error fetching completed payments:', error);
+        return res.status(500).json({ message: 'Internal Server Error', error: error.message });
     }
-  };
-  
-  
+};
+
+
+exports.getChartDetails = async (req, res) => {
+    try {
+        const userId = req.user.id;
+
+        const currentDate = new Date();
+        const currentMonth = currentDate.getMonth() + 1; // JavaScript months are 0-indexed
+        const currentYear = currentDate.getFullYear();
+
+        const dailyRevenue = await Payment.aggregate([
+            {
+                // Match completed payments for the current month and year
+                $match: {
+                    status: 'Completed',
+                    createdAt: {
+                        $gte: new Date(`${currentYear}-${currentMonth}-01T00:00:00Z`),
+                        $lt: new Date(`${currentYear}-${currentMonth + 1}-01T00:00:00Z`),
+                    },
+                },
+            },
+            {
+                // Lookup orders for the given payment
+                $lookup: {
+                    from: 'orders',
+                    localField: 'orderId',
+                    foreignField: '_id',
+                    as: 'orderDetails',
+                },
+            },
+            {
+                // Unwind the orderDetails array
+                $unwind: '$orderDetails',
+            },
+            {
+                // Lookup products based on productId from orderDetails
+                $lookup: {
+                    from: 'products',
+                    localField: 'orderDetails.products.productId',
+                    foreignField: '_id',
+                    as: 'productDetails',
+                },
+            },
+            {
+                // Unwind the productDetails array
+                $unwind: '$productDetails',
+            },
+            {
+                // Match products created by the current user
+                $match: {
+                    'productDetails.user': new mongoose.Types.ObjectId(userId),
+                },
+            },
+            {
+                // Group by day of the month
+                $group: {
+                    _id: { day: { $dayOfMonth: '$createdAt' } },
+                    totalRevenue: { $sum: '$amount' },
+                },
+            },
+            {
+                // Project the final result
+                $project: {
+                    _id: 0,
+                    date: { $concat: [{ $toString: '$_id.day' }] },
+                    value: '$totalRevenue',
+                },
+            },
+            {
+                // Sort by day in ascending order
+                $sort: { date: 1 },
+            },
+        ]);
+
+        const monthlyRevenue = await Payment.aggregate([
+            {
+                // Match completed payments only
+                $match: {
+                    status: 'Completed',
+                },
+            },
+            {
+                // Lookup orders for the given payment
+                $lookup: {
+                    from: 'orders',
+                    localField: 'orderId',
+                    foreignField: '_id',
+                    as: 'orderDetails',
+                },
+            },
+            {
+                // Unwind the orderDetails array
+                $unwind: '$orderDetails',
+            },
+            {
+                // Lookup products based on productId from orderDetails
+                $lookup: {
+                    from: 'products',
+                    localField: 'orderDetails.products.productId',
+                    foreignField: '_id',
+                    as: 'productDetails',
+                },
+            },
+            {
+                // Unwind the productDetails array
+                $unwind: '$productDetails',
+            },
+            {
+                // Match products created by the current user
+                $match: {
+                    'productDetails.user': new mongoose.Types.ObjectId(userId),
+                },
+            },
+            {
+                // Group by month
+                $group: {
+                    _id: { month: { $month: '$createdAt' } },
+                    totalRevenue: { $sum: '$amount' },
+                },
+            },
+            {
+                // Add month name to the data
+                $addFields: {
+                    monthName: {
+                        $arrayElemAt: [
+                            [
+                                'Jan',
+                                'Feb',
+                                'Mar',
+                                'Apr',
+                                'May',
+                                'Jun',
+                                'Jul',
+                                'Aug',
+                                'Sep',
+                                'Oct',
+                                'Nov',
+                                'Dec',
+                            ],
+                            { $subtract: ['$_id.month', 1] },
+                        ],
+                    },
+                },
+            },
+            {
+                // Project the required fields
+                $project: {
+                    _id: 0,
+                    date: '$monthName',
+                    value: '$totalRevenue',
+                },
+            },
+            {
+                // Sort by month in ascending order
+                $sort: { date: 1 },
+            },
+        ]);
+
+        const yearlyRevenue = await Payment.aggregate([
+            {
+                // Match completed payments
+                $match: {
+                    status: 'Completed',
+                },
+            },
+            {
+                // Lookup orders for the given payment
+                $lookup: {
+                    from: 'orders',
+                    localField: 'orderId',
+                    foreignField: '_id',
+                    as: 'orderDetails',
+                },
+            },
+            {
+                // Unwind the orderDetails array
+                $unwind: '$orderDetails',
+            },
+            {
+                // Lookup products based on productId from orderDetails
+                $lookup: {
+                    from: 'products',
+                    localField: 'orderDetails.products.productId',
+                    foreignField: '_id',
+                    as: 'productDetails',
+                },
+            },
+            {
+                // Unwind the productDetails array
+                $unwind: '$productDetails',
+            },
+            {
+                // Match products created by the current user
+                $match: {
+                    'productDetails.user': new mongoose.Types.ObjectId(userId),
+                },
+            },
+            {
+                // Group by year
+                $group: {
+                    _id: { year: { $year: '$createdAt' } },
+                    totalRevenue: { $sum: '$amount' },
+                },
+            },
+            {
+                // Filter to include years starting from 2020
+                $match: {
+                    '_id.year': { $gte: 2020 },
+                },
+            },
+            {
+                // Project the final result
+                $project: {
+                    _id: 0,
+                    date: { $toString: '$_id.year' }, // Year as string
+                    value: '$totalRevenue',
+                },
+            },
+            {
+                // Sort by year in ascending order
+                $sort: { date: 1 },
+            },
+        ]);
+
+        // Return the monthly revenue
+        return res.json({
+            message: 'Monthly Revenue',
+            data: {
+                day: dailyRevenue,
+                month: monthlyRevenue,
+                year: yearlyRevenue,
+            },
+        });
+    } catch (error) {
+        console.error('Error fetching completed payments:', error);
+        return res.status(500).json({ message: 'Internal Server Error', error: error.message });
+    }
+}
