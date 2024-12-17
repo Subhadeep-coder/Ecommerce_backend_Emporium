@@ -306,7 +306,7 @@ exports.markOrderAsDelivered = catchAsyncErrors(async (req, res, next) => {
     const newPaymentModel = await Payment.create({
         orderId: updatedOrder._id,
         status: "Completed",
-        amount: updatedOrder.totalPrice,
+        amount: updatedOrder.totalAmount,
         currency: "USD",
     });
     return res.status(200).json({
@@ -437,7 +437,7 @@ exports.fetchCompletedPayments = async (req , res) => {
           // Match the userId in the productDetails and filter completed payments
           $match: {
             'productDetails.userId': userId,
-            status: 'completed',
+            status: 'pending',
           },
         },
         {
