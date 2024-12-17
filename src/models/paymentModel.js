@@ -1,8 +1,10 @@
+const { ref } = require('joi');
 const mongoose = require('mongoose');
 
 const paymentSchema = new mongoose.Schema({
   orderId: {
-    type: String,
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'order',
     required: true,
   },
   paymentId: {

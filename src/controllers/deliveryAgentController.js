@@ -415,16 +415,33 @@ exports.verifyGoogleToken = async (req, res) => {
 
 };
 
-exports.fetchCompletedPayments = async (req , res) => {
+exports.fetchCompletedPayments = async (req, res) => {
     try {
-        const userId = req.user.id;
-        //console.log(userId);
+      const userId = req.user.id;
+    console.log(userId);
       const completedPayments = await Payment.aggregate([
         {
-          // Lookup products for the given user
+          // Lookup orders for the given payment
+          $lookup: {
+            from: 'orders',
+            localField: 'orderId',
+            foreignField: '_id',
+            as: 'orderDetails',
+          },
+        },
+        {
+          // Unwind the orderDetails array
+          $unwind: '$orderDetails',
+        },
+        {
+          // Unwind the products array inside orderDetails
+          $unwind: '$orderDetails.products',
+        },
+        {
+          // Lookup products based on productId from orderDetails
           $lookup: {
             from: 'products',
-            localField: 'productId',
+            localField: 'orderDetails.products.productId',
             foreignField: '_id',
             as: 'productDetails',
           },
@@ -434,32 +451,34 @@ exports.fetchCompletedPayments = async (req , res) => {
           $unwind: '$productDetails',
         },
         {
-          // Match the userId in the productDetails and filter completed payments
+          // Match the userId and status
           $match: {
-            'productDetails.userId': userId,
-            status: 'pending',
+             'productDetails.user': new mongoose.Types.ObjectId(userId),
+            status: 'Completed',
           },
         },
-        {
-          // Optional: Project required fields
-          $project: {
-            _id: 0,
-            orderId: 1,
-            productId: 1,
-            status: 1,
-            'productDetails.name': 1,
-          },
-        },
-        {
-            $limit: 1,
-
-        }
+        // {
+        //     $project: {
+        //       orderId: 1,
+        //       'orderDetails.products': 1,
+        //       productDetails: 1,
+        //       status: 1,
+        //     },
+        //   },
+          
       ]);
-      console.dir(completedPayments, { depth: null });
-      return res.json({ message: "Completed Payments", });
+  
+      // Log the productDetails for debugging
+      //console.dir(completedPayments, { depth: null });
+  
+      return res.json({
+        message: 'Completed Payments',
+        data: completedPayments,
+      });
     } catch (error) {
       console.error('Error fetching completed payments:', error);
-      throw error;
+      return res.status(500).json({ message: 'Internal Server Error', error: error.message });
     }
   };
+  
   
