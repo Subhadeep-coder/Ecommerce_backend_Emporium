@@ -451,6 +451,12 @@ exports.fetchCompletedPayments = async (req, res) => {
           $unwind: '$productDetails',
         },
         {
+            // Exclude the images field from productDetails
+            $project: {
+                'productDetails.images': 0,
+            },
+        },
+        {
           // Match the userId and status
           $match: {
              'productDetails.user': new mongoose.Types.ObjectId(userId),
@@ -465,7 +471,32 @@ exports.fetchCompletedPayments = async (req, res) => {
         //       status: 1,
         //     },
         //   },
-          
+        {
+            // Group to calculate total revenue and total items sold
+            $group: {
+                _id: null,
+                totalRevenue: { $sum: '$amount' }, // Sum the amounts for revenue
+                totalItemsSold: { $sum: '$orderDetails.products.quantity' }, // Sum product quantities for total items sold
+                data: { $push: '$$ROOT' }, // Preserve all original documents
+            },
+        },
+        {
+            // Unwind data back to individual documents
+            $unwind: '$data',
+        },
+        {
+            // Add totalRevenue and totalItemsSold to each document
+            $addFields: {
+                'data.totalRevenue': '$totalRevenue',
+                'data.totalItemsSold': '$totalItemsSold',
+            },
+        },
+        {
+            // Restore the original structure
+            $replaceRoot: {
+                newRoot: '$data',
+            },
+        },
       ]);
   
       // Log the productDetails for debugging
