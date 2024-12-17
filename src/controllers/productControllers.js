@@ -67,17 +67,17 @@ const createProduct = catchAsyncErrors(async (req, res, next) => {
   await newProduct.save();
   await user.save();
 
-  // Emit notifications to all followers
-  const io = req.app.get('socketio'); // Assuming Socket.IO is set up on the app instance
-  const followers = await User.find({ _id: { $in: user.followers } });
+  // // Emit notifications to all followers
+  // const io = req.app.get('socketio'); // Assuming Socket.IO is set up on the app instance
+  // const followers = await User.find({ _id: { $in: user.followers } });
 
-  // Emit new product notification to each follower
-  followers.forEach(follower => {
-    io.to(follower._id.toString()).emit('new_product', {
-      message: `A new product titled "${title}" was added by ${user.storeName}`,
-      productId: newProduct._id,
-    });
-  });
+  // // Emit new product notification to each follower
+  // followers.forEach(follower => {
+  //   io.to(follower._id.toString()).emit('new_product', {
+  //     message: `A new product titled "${title}" was added by ${user.storeName}`,
+  //     productId: newProduct._id,
+  //   });
+  // });
 
   res.status(201).json({ message: "Product created successfully", product: newProduct });
 });

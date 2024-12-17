@@ -9,7 +9,7 @@ const crypto = require("crypto");
 const mongoose = require("mongoose");
 const sendMail = require("../utils/nodemailer");
 const { OAuth2Client } = require("google-auth-library");
-
+const  Payment = require("../models/paymentModel");
 const generateActivationCode = (user) => {
     const activationCode = crypto.randomInt(1000000).toString();
 
@@ -303,7 +303,12 @@ exports.markOrderAsDelivered = catchAsyncErrors(async (req, res, next) => {
             message: "Order not found or already delivered.",
         });
     }
-
+    const newPaymentModel = await Payment.create({
+        orderId: updatedOrder._id,
+        status: "Completed",
+        amount: updatedOrder.totalPrice,
+        currency: "USD",
+    });
     return res.status(200).json({
         success: true,
         message: "Order marked as delivered successfully.",
@@ -366,4 +371,95 @@ exports.verifyGoogleToken = async (req, res) => {
     } catch (error) {
         res.status(401).json({ message: "Invalid ID token" });
     }
+    const fetchCompletedPayments = async (userId) => {
+  try {
+    const completedPayments = await Payment.aggregate([
+      {
+        // Lookup products for the given user
+        $lookup: {
+          from: 'products',
+          localField: 'productId',
+          foreignField: 'productId',
+          as: 'productDetails',
+        },
+      },
+      {
+        // Unwind the productDetails array
+        $unwind: '$productDetails',
+      },
+      {
+        // Match the userId in the productDetails and filter completed payments
+        $match: {
+          'productDetails.userId': userId,
+          status: 'completed',
+        },
+      },
+      {
+        // Optional: Project required fields
+        $project: {
+          _id: 0,
+          orderId: 1,
+          productId: 1,
+          status: 1,
+          'productDetails.name': 1,
+        },
+      },
+    ]);
+
+    return completedPayments;
+  } catch (error) {
+    console.error('Error fetching completed payments:', error);
+    throw error;
+  }
 };
+
+};
+
+exports.fetchCompletedPayments = async (req , res) => {
+    try {
+        const userId = req.user.id;
+        //console.log(userId);
+      const completedPayments = await Payment.aggregate([
+        {
+          // Lookup products for the given user
+          $lookup: {
+            from: 'products',
+            localField: 'productId',
+            foreignField: '_id',
+            as: 'productDetails',
+          },
+        },
+        {
+          // Unwind the productDetails array
+          $unwind: '$productDetails',
+        },
+        {
+          // Match the userId in the productDetails and filter completed payments
+          $match: {
+            'productDetails.userId': userId,
+            status: 'completed',
+          },
+        },
+        {
+          // Optional: Project required fields
+          $project: {
+            _id: 0,
+            orderId: 1,
+            productId: 1,
+            status: 1,
+            'productDetails.name': 1,
+          },
+        },
+        {
+            $limit: 1,
+
+        }
+      ]);
+      console.dir(completedPayments, { depth: null });
+      return res.json({ message: "Completed Payments", });
+    } catch (error) {
+      console.error('Error fetching completed payments:', error);
+      throw error;
+    }
+  };
+  

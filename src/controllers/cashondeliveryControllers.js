@@ -8,10 +8,10 @@ exports.createOrder = catchAsyncErrors(async (req, res, next) => {
   try {
     const userId = req.user.id;
     const { address, location } = req.body;
-
+    console.log(address, location);
     // Check if the user has a cart
-    const cart = await Cart.findOne({ userId }).populate("products.productId");
-
+    const cart = await Cart.findOne({ userId }).populate("products");
+    console.log(cart);
     if (!cart || cart.products.length === 0) {
       return res.status(404).send("No items in cart to purchase");
     }
@@ -28,7 +28,7 @@ exports.createOrder = catchAsyncErrors(async (req, res, next) => {
       status: "Order Placed", // Initial order status
       deliveryStatus: "pending", // Delivery will be marked as pending until fulfilled
     });
-
+    console.log(order);
     // Clear the user's cart after the order is created
     await Cart.findOneAndDelete({ userId });
 

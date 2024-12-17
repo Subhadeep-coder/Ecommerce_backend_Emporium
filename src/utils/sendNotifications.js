@@ -16,7 +16,7 @@ const sendNotification = async (recipientId, message, type, senderId, productId 
         await notification.save();
 
         // Emit the notification in real-time to the recipient using Socket.IO
-        io.to(recipientId.toString()).emit('new_notification', notification);
+        //io.to(recipientId.toString()).emit('new_notification', notification);
 
         console.log('Notification sent:', notification);
     } catch (error) {
