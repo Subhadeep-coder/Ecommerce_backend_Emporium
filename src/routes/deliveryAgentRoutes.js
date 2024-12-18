@@ -1,5 +1,5 @@
 const express = require('express');
-const {fetchCompletedPayments, registerDeliveryAgent, verifyDeliveryAgent, loginDeliveryAgent, getDeliveryAgentProfile, getNearestOrders, assignOrder, getOrderDetails, markOrderAsDelivered, verifyGoogleToken, updateProfile, getChartDetails } = require('../controllers/deliveryAgentController');
+const { fetchCompletedPayments, registerDeliveryAgent, verifyDeliveryAgent, loginDeliveryAgent, getDeliveryAgentProfile, getNearestOrders, assignOrder, getOrderDetails, markOrderAsDelivered, verifyGoogleToken, updateProfile, getChartDetails, getTopProducts } = require('../controllers/deliveryAgentController');
 const upload = require("../config/multer-config");
 const { isLoggedIn } = require('../middlewares/checkAuth');
 const passport = require("passport");
@@ -12,7 +12,7 @@ deliveryAgentRouter.post('/signup', upload.fields([
 deliveryAgentRouter
 deliveryAgentRouter.post('/verify', verifyDeliveryAgent);
 deliveryAgentRouter.post('/login', loginDeliveryAgent);
-deliveryAgentRouter.put('/update-profile',isLoggedIn, updateProfile);
+deliveryAgentRouter.put('/update-profile', isLoggedIn, updateProfile);
 deliveryAgentRouter.get('/profile', isLoggedIn, getDeliveryAgentProfile);
 deliveryAgentRouter.get('/get-nearest-orders', isLoggedIn, getNearestOrders);
 deliveryAgentRouter.post('/assign-order', isLoggedIn, assignOrder);
@@ -20,7 +20,7 @@ deliveryAgentRouter.get('/get-current-order', isLoggedIn, getOrderDetails);
 deliveryAgentRouter.put('/update-delivery-status/:orderId', isLoggedIn, markOrderAsDelivered);
 deliveryAgentRouter.get(
   "/google",
-  passport.authenticate("google", { scope: ["profile", "email", "https://www.googleapis.com/auth/user.phonenumbers.read"  ] })
+  passport.authenticate("google", { scope: ["profile", "email", "https://www.googleapis.com/auth/user.phonenumbers.read"] })
 );
 
 deliveryAgentRouter.get(
@@ -58,5 +58,6 @@ deliveryAgentRouter.get("/logout", (req, res) => {
 deliveryAgentRouter.post('/verifyToken', verifyGoogleToken);
 deliveryAgentRouter.get('/getpayments', isLoggedIn, fetchCompletedPayments);
 deliveryAgentRouter.get('/get-chart', isLoggedIn, getChartDetails);
+deliveryAgentRouter.get('/get-top-products', isLoggedIn, getTopProducts);
 
 module.exports = deliveryAgentRouter;
