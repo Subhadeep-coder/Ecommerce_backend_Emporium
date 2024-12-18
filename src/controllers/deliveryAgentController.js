@@ -534,10 +534,14 @@ exports.fetchCompletedPayments = async (req, res) => {
             }
         ]);
         let revenue = 0;
-        orders.forEach((element) => revenue += element.productDetails.price * element.quantity);
+        let unitSold = 0;
+        orders.forEach((element) => {
+            revenue += element.productDetails.price * element.quantity;
+            unitSold += element.quantity;
+        });
         return res.json({
             message: 'Completed Payments',
-            data: { ...orders, revenue, totalCount: orders.length },
+            data: { ...orders, revenue, unitSold },
         });
     } catch (error) {
         console.error('Error fetching completed payments:', error);
