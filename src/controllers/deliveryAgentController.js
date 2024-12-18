@@ -419,99 +419,131 @@ exports.fetchCompletedPayments = async (req, res) => {
     try {
         const userId = req.user.id;
         console.log(userId);
-        const completedPayments = await Payment.aggregate([
-            {
-                // Lookup orders for the given payment
-                $lookup: {
-                    from: 'orders',
-                    localField: 'orderId',
-                    foreignField: '_id',
-                    as: 'orderDetails',
-                },
-            },
-            {
-                // Unwind the orderDetails array
-                $unwind: '$orderDetails',
-            },
-            {
-                // Unwind the products array inside orderDetails
-                $unwind: '$orderDetails.products',
-            },
-            {
-                // Lookup products based on productId from orderDetails
-                $lookup: {
-                    from: 'products',
-                    localField: 'orderDetails.products.productId',
-                    foreignField: '_id',
-                    as: 'productDetails',
-                },
-            },
-            {
-                // Unwind the productDetails array
-                $unwind: '$productDetails',
-            },
-            {
-                // Exclude the images field from productDetails
-                $project: {
-                    'productDetails.images': 0,
-                },
-            },
-            {
-                // Match the userId and status
-                $match: {
-                    'productDetails.user': new mongoose.Types.ObjectId(userId),
-                    status: 'Completed',
-                },
-            },
-            // {
-            //     $project: {
-            //       orderId: 1,
-            //       'orderDetails.products': 1,
-            //       productDetails: 1,
-            //       status: 1,
-            //     },
-            //   },
-            {
-                // Group to calculate total revenue and total items sold
-                $group: {
-                    _id: null,
-                    totalRevenue: { $sum: '$amount' }, // Sum the amounts for revenue
-                    totalItemsSold: { $sum: '$orderDetails.products.quantity' }, // Sum product quantities for total items sold
-                    data: { $push: '$$ROOT' }, // Preserve all original documents
-                },
-            },
-            {
-                // Unwind data back to individual documents
-                $unwind: '$data',
-            },
-            {
-                // Add totalRevenue and totalItemsSold to each document
-                $addFields: {
-                    'data.totalRevenue': '$totalRevenue',
-                    'data.totalItemsSold': '$totalItemsSold',
-                },
-            },
-            {
-                // Restore the original structure
-                $replaceRoot: {
-                    newRoot: '$data',
-                },
-            },
-        ]);
+        // const completedPayments = await Payment.aggregate([
+        //     {
+        //         // Lookup orders for the given payment
+        //         $lookup: {
+        //             from: 'orders',
+        //             localField: 'orderId',
+        //             foreignField: '_id',
+        //             as: 'orderDetails',
+        //         },
+        //     },
+        //     {
+        //         // Unwind the orderDetails array
+        //         $unwind: '$orderDetails',
+        //     },
+        //     {
+        //         // Unwind the products array inside orderDetails
+        //         $unwind: '$orderDetails.products',
+        //     },
+        //     {
+        //         // Lookup products based on productId from orderDetails
+        //         $lookup: {
+        //             from: 'products',
+        //             localField: 'orderDetails.products.productId',
+        //             foreignField: '_id',
+        //             as: 'productDetails',
+        //         },
+        //     },
+        //     {
+        //         // Unwind the productDetails array
+        //         $unwind: '$productDetails',
+        //     },
+        //     {
+        //         // Exclude the images field from productDetails
+        //         $project: {
+        //             'productDetails.images': 0,
+        //         },
+        //     },
+        //     {
+        //         // Match the userId and status
+        //         $match: {
+        //             'productDetails.user': new mongoose.Types.ObjectId(userId),
+        //             status: 'Completed',
+        //         },
+        //     },
+        //     // {
+        //     //     $project: {
+        //     //       orderId: 1,
+        //     //       'orderDetails.products': 1,
+        //     //       productDetails: 1,
+        //     //       status: 1,
+        //     //     },
+        //     //   },
+        //     {
+        //         // Group to calculate total revenue and total items sold
+        //         $group: {
+        //             _id: null,
+        //             totalRevenue: { $sum: '$amount' }, // Sum the amounts for revenue
+        //             totalItemsSold: { $sum: '$orderDetails.products.quantity' }, // Sum product quantities for total items sold
+        //             data: { $push: '$$ROOT' }, // Preserve all original documents
+        //         },
+        //     },
+        //     {
+        //         // Unwind data back to individual documents
+        //         $unwind: '$data',
+        //     },
+        //     {
+        //         // Add totalRevenue and totalItemsSold to each document
+        //         $addFields: {
+        //             'data.totalRevenue': '$totalRevenue',
+        //             'data.totalItemsSold': '$totalItemsSold',
+        //         },
+        //     },
+        //     {
+        //         // Restore the original structure
+        //         $replaceRoot: {
+        //             newRoot: '$data',
+        //         },
+        //     },
+        // ]);
 
         // Log the productDetails for debugging
         //console.dir(completedPayments, { depth: null });
+        const orders = await Order.aggregate([
+            { $match: { deliveryStatus: "delivered" } },
+            // Unwind the products array to deal with individual products
+            { $unwind: "$products" },
 
+            // Lookup to join with the product collection
+            {
+                $lookup: {
+                    from: "products", // The name of the Product collection (case-sensitive)
+                    localField: "products.productId",
+                    foreignField: "_id",
+                    as: "productDetails"
+                }
+            },
+
+            // Unwind the productDetails array to get the actual product object
+            { $unwind: "$productDetails" },
+
+            // Match products where the user field matches the sellerId
+            { $match: { "productDetails.user": new mongoose.Types.ObjectId(userId) } },
+
+            // Project the desired fields
+            {
+                $project: {
+                    _id: 0,
+                    orderId: "$_id", // Include the order ID for context
+                    productId: "$products.productId",
+                    quantity: "$products.quantity",
+                    productDetails: 1, // Includes the entire product details
+                }
+            }
+        ]);
+        let revenue = 0;
+        orders.forEach((element) => revenue += element.productDetails.price * element.quantity);
         return res.json({
             message: 'Completed Payments',
-            data: completedPayments,
+            data: { ...orders, revenue, totalCount: orders.length },
         });
     } catch (error) {
         console.error('Error fetching completed payments:', error);
         return res.status(500).json({ message: 'Internal Server Error', error: error.message });
     }
 };
-
 
 exports.getChartDetails = async (req, res) => {
     try {
