@@ -4,6 +4,7 @@ const Payment = require("../models/paymentModel");
 const { catchAsyncErrors } = require("../middlewares/catchAsyncError");
 const ErrorHandler = require("../utils/ErrorHandler");
 const { User } = require("../models/userModel");
+const mongoose = require("mongoose");
 
 // Get all orders for a user
 exports.getOrders = catchAsyncErrors(async (req, res, next) => {
@@ -111,8 +112,30 @@ exports.getOrdersByStore = catchAsyncErrors(async (req, res, next) => {
         from: "users",
         localField: "userId",
         foreignField: "_id",
-        as: "customerDetails"
-      }
+        as: "customerDetails",
+      },
+    },
+    {
+      $addFields: {
+        customerDetails: {
+          $map: {
+            input: "$customerDetails",
+            as: "customer",
+            in: {
+              _id: "$$customer._id",
+              name: "$$customer.name",
+              email: "$$customer.email",
+              // Include other fields you need, exclude "activities"
+            },
+          },
+        },
+      },
+    },
+    {
+      // Exclude the "activities" field from customerDetails
+      $project: {
+        "customerDetails.activities": 0,
+      },
     },
     {
       $lookup: {
@@ -124,29 +147,50 @@ exports.getOrdersByStore = catchAsyncErrors(async (req, res, next) => {
     },
     {
       $lookup: {
-        from: 'users',
-        localField: 'productDetails.user',
-        foreignField: '_id',
-        as: 'productDetails.userDetails'
-      }
+        from: "users",
+        localField: "productDetails.user",
+        foreignField: "_id",
+        as: "productDetails.userDetails",
+      },
+    },
+    {
+      $unwind: "$products", // Unwind the products array to process individual products
+    },
+    {
+      $lookup: {
+        from: "products",
+        localField: "products.productId",
+        foreignField: "_id",
+        as: "productData",
+      },
+    },
+    {
+      $unwind: "$productData", // Unwind the productData array to access product details
     },
     {
       $match: {
-        "productDetails.userDetails.storeName": storeName,
+        "productData.user": new mongoose.Types.ObjectId(userId), // Match only products created by the current user
+      },
+    },
+    {
+      $addFields: {
+        productRevenue: {
+          $multiply: ["$products.quantity", "$productData.price"], // Calculate revenue for each product
+        },
       },
     },
     {
       $group: {
-        _id: "$_id",
+        _id: "$_id", // Group by order ID
         userId: { $first: "$userId" },
         products: {
           $push: {
-            productId: "$productDetails._id",
+            productId: "$products.productId",
             quantity: "$products.quantity",
-            _id: "$products._id"
-          }
+            productRevenue: "$productRevenue",
+          },
         },
-        totalAmount: { $first: "$totalAmount" },
+        totalRevenue: { $sum: "$productRevenue" }, // Sum up revenue for products in the order
         address: { $first: "$address" },
         location: { $first: "$location" },
         status: { $first: "$status" },
@@ -155,8 +199,11 @@ exports.getOrdersByStore = catchAsyncErrors(async (req, res, next) => {
         deliveryStatus: { $first: "$deliveryStatus" },
         createdAt: { $first: "$createdAt" },
         updatedAt: { $first: "$updatedAt" },
-        customerDetails: { $first: "$customerDetails" }
-      }
+        customerDetails: { $first: "$customerDetails" },
+      },
+    },
+    {
+      $sort: { createdAt: -1 }, // Sort by createdAt in descending order (optional)
     },
     {
       $skip: skip ? skip : 0,
@@ -165,6 +212,7 @@ exports.getOrdersByStore = catchAsyncErrors(async (req, res, next) => {
       $limit: limit ? limit : 10,
     },
   ]);
+
 
   console.log(orders);
 
