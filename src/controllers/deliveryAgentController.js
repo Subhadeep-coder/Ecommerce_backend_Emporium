@@ -914,3 +914,154 @@ exports.recentSales = async (req, res) => {
         return res.status(500).json({ message: 'Internal Server Error', error: error.message });
     }
 };
+
+exports.orderAnalytics = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const now = new Date();
+        const currentMonthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+        const lastMonthStart = new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1);
+        const lastMonthEnd = new Date(new Date().getFullYear(), new Date().getMonth(), 0);
+
+        const metrics = await Payment.aggregate([
+            // Match only completed payments
+            { $match: { status: 'Completed' } },
+            // Lookup orders
+            {
+                $lookup: {
+                    from: 'orders',
+                    localField: 'orderId',
+                    foreignField: '_id',
+                    as: 'orderDetails',
+                },
+            },
+            { $unwind: '$orderDetails' },
+            // Unwind products within orderDetails
+            { $unwind: '$orderDetails.products' },
+            // Lookup product details
+            {
+                $lookup: {
+                    from: 'products',
+                    localField: 'orderDetails.products.productId',
+                    foreignField: '_id',
+                    as: 'productDetails',
+                },
+            },
+            { $unwind: '$productDetails' },
+            // Filter by user's products
+            {
+                $match: {
+                    'productDetails.user': new mongoose.Types.ObjectId(userId),
+                },
+            },
+            // Add fields for date-based filtering
+            {
+                $addFields: {
+                    orderMonth: { $month: '$createdAt' },
+                    orderYear: { $year: '$createdAt' },
+                },
+            },
+            // Group data for overall metrics and monthly metrics
+            {
+                $facet: {
+                    totalOrders: [
+                        {
+                            $group: {
+                                _id: null,
+                                totalOrders: { $sum: 1 },
+                                totalRevenue: { $sum: '$amount' },
+                            },
+                        },
+                    ],
+                    lastMonthMetrics: [
+                        {
+                            $match: {
+                                createdAt: { $gte: lastMonthStart, $lte: lastMonthEnd },
+                            },
+                        },
+                        {
+                            $group: {
+                                _id: null,
+                                ordersLastMonth: { $sum: 1 },
+                                revenueLastMonth: { $sum: '$amount' },
+                            },
+                        },
+                    ],
+                    currentMonthMetrics: [
+                        {
+                            $match: {
+                                createdAt: { $gte: currentMonthStart },
+                            },
+                        },
+                        {
+                            $group: {
+                                _id: null,
+                                ordersCurrentMonth: { $sum: 1 },
+                                revenueCurrentMonth: { $sum: '$amount' },
+                            },
+                        },
+                    ],
+                },
+            },
+            // Combine results and calculate additional fields
+            {
+                $project: {
+                    totalOrders: { $arrayElemAt: ['$totalOrders.totalOrders', 0] },
+                    totalRevenue: { $arrayElemAt: ['$totalOrders.totalRevenue', 0] },
+                    ordersLastMonth: {
+                        $ifNull: [{ $arrayElemAt: ['$lastMonthMetrics.ordersLastMonth', 0] }, 0],
+                    },
+                    revenueLastMonth: {
+                        $ifNull: [{ $arrayElemAt: ['$lastMonthMetrics.revenueLastMonth', 0] }, 0],
+                    },
+                    revenueCurrentMonth: {
+                        $ifNull: [{ $arrayElemAt: ['$currentMonthMetrics.revenueCurrentMonth', 0] }, 0],
+                    },
+                    ordersCurrentMonth: {
+                        $ifNull: [{ $arrayElemAt: ['$currentMonthMetrics.ordersCurrentMonth', 0] }, 0],
+                    },
+                },
+            },
+            // Calculate avgRevenueCurrentMonth and growthRate
+            {
+                $addFields: {
+                    avgRevenueCurrentMonth: {
+                        $cond: {
+                            if: { $eq: ['$ordersCurrentMonth', 0] },
+                            then: 0,
+                            else: { $divide: ['$revenueCurrentMonth', '$ordersCurrentMonth'] },
+                        },
+                    },
+                    growthRate: {
+                        $cond: {
+                            if: { $eq: ['$revenueLastMonth', 0] },
+                            then: { $literal: "No Revenue Last Month" },  // Or set Infinity if you want
+                            else: {
+                                $multiply: [
+                                    {
+                                        $divide: [
+                                            { $subtract: ['$revenueCurrentMonth', '$revenueLastMonth'] },
+                                            '$revenueLastMonth',
+                                        ],
+                                    },
+                                    100,
+                                ],
+                            },
+                        },
+                    },
+
+                },
+            },
+        ]);
+
+        // console.log(JSON.stringify(metrics, null, 2));
+
+
+        return res.status(200).json({
+            metrics
+        });
+    } catch (error) {
+        console.error('Error fetching recent sales:', error);
+        return res.status(500).json({ message: 'Internal Server Error', error: error.message });
+    }
+}
