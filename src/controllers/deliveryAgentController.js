@@ -846,6 +846,7 @@ exports.getTopProducts = async (req, res) => {
                     name: '$productName',
                     category: '$productCategory',
                     revenue: '$totalRevenue',
+                    quantity: '$totalQuantity'
                 },
             },
             {
@@ -863,3 +864,71 @@ exports.getTopProducts = async (req, res) => {
         return res.status(500).json({ message: 'Internal Server Error', error: error.message });
     }
 }
+
+exports.recentSales = async (req, res) => {
+    try {
+        const userId = req.user.id;
+
+        const recentSales = await Payment.aggregate([
+            // Match delivered payments
+            {
+                $match: {
+                    status: "Completed", // Only fetch completed payments
+                },
+            },
+            // Lookup orders by orderId
+            {
+                $lookup: {
+                    from: 'orders',
+                    localField: 'orderId',
+                    foreignField: '_id',
+                    as: 'orderDetails',
+                },
+            },
+            // Unwind orderDetails to work with individual orders
+            {
+                $unwind: '$orderDetails',
+            },
+            // Lookup products for the orders
+            {
+                $lookup: {
+                    from: 'products',
+                    localField: 'orderDetails.products.productId',
+                    foreignField: '_id',
+                    as: 'productDetails',
+                },
+            },
+            // Unwind productDetails to access each product
+            {
+                $unwind: '$productDetails',
+            },
+            // Match only your products based on userId
+            {
+                $match: {
+                    'productDetails.user': new mongoose.Types.ObjectId(userId),
+                },
+            },
+            // Reshape data to include only necessary fields
+            {
+                $project: {
+                    _id: 0, // Exclude MongoDB ID
+                    time: '$createdAt', // Delivery time (from Payment model)
+                    productName: '$productDetails.title', // Product name
+                    price: '$productDetails.price', // Product price
+                },
+            },
+            // Sort by delivery time in descending order (most recent sales first)
+            {
+                $sort: { time: -1 },
+            },
+        ]);
+
+        // Return the data
+        return res.status(200).json({
+            recentSales,
+        });
+    } catch (error) {
+        console.error('Error fetching recent sales:', error);
+        return res.status(500).json({ message: 'Internal Server Error', error: error.message });
+    }
+};

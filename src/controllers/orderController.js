@@ -125,6 +125,7 @@ exports.getOrdersByStore = catchAsyncErrors(async (req, res, next) => {
               _id: "$$customer._id",
               name: "$$customer.name",
               email: "$$customer.email",
+              profilePic: "$$customer.profilePic",
               // Include other fields you need, exclude "activities"
             },
           },
