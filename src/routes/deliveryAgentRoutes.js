@@ -1,5 +1,5 @@
 const express = require('express');
-const { fetchCompletedPayments, registerDeliveryAgent, verifyDeliveryAgent, loginDeliveryAgent, getDeliveryAgentProfile, getNearestOrders, assignOrder, getOrderDetails, markOrderAsDelivered, verifyGoogleToken, updateProfile, getChartDetails, getTopProducts, recentSales, orderAnalytics } = require('../controllers/deliveryAgentController');
+const { fetchCompletedPayments, registerDeliveryAgent, verifyDeliveryAgent, loginDeliveryAgent, getDeliveryAgentProfile, getNearestOrders, assignOrder, getOrderDetails, markOrderAsDelivered, verifyGoogleToken, updateProfile, getChartDetails, getTopProducts, recentSales, orderAnalytics, salesGraph } = require('../controllers/deliveryAgentController');
 const upload = require("../config/multer-config");
 const { isLoggedIn } = require('../middlewares/checkAuth');
 const passport = require("passport");
@@ -61,5 +61,6 @@ deliveryAgentRouter.get('/get-chart', isLoggedIn, getChartDetails);
 deliveryAgentRouter.get('/get-top-products', isLoggedIn, getTopProducts);
 deliveryAgentRouter.get('/get-recent-sales', isLoggedIn, recentSales);
 deliveryAgentRouter.get('/get-order-analytics', isLoggedIn, orderAnalytics);
+deliveryAgentRouter.get('/get-sales-analytics', isLoggedIn, salesGraph);
 
 module.exports = deliveryAgentRouter;
