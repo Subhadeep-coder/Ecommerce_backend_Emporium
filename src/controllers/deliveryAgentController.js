@@ -790,14 +790,8 @@ exports.getTopProducts = async (req, res) => {
     try {
         const userId = req.user.id;
         const topProducts = await Payment.aggregate([
+            { $match: { status: 'Completed' } },
             {
-                // Match only completed payments
-                $match: {
-                    status: 'Completed',
-                },
-            },
-            {
-                // Lookup orders for the given payment
                 $lookup: {
                     from: 'orders',
                     localField: 'orderId',
@@ -805,12 +799,9 @@ exports.getTopProducts = async (req, res) => {
                     as: 'orderDetails',
                 },
             },
+            { $unwind: '$orderDetails' },
+            { $unwind: '$orderDetails.products' },
             {
-                // Unwind the orderDetails array
-                $unwind: '$orderDetails',
-            },
-            {
-                // Lookup products based on productId from orderDetails
                 $lookup: {
                     from: 'products',
                     localField: 'orderDetails.products.productId',
@@ -818,41 +809,32 @@ exports.getTopProducts = async (req, res) => {
                     as: 'productDetails',
                 },
             },
+            { $unwind: '$productDetails' },
             {
-                // Unwind the productDetails array
-                $unwind: '$productDetails',
-            },
-            {
-                // Match products created by the current user (if filtering by user)
                 $match: {
                     'productDetails.user': new mongoose.Types.ObjectId(userId),
                 },
             },
             {
-                // Group by product ID
                 $group: {
                     _id: '$productDetails._id',
                     totalRevenue: { $sum: '$amount' },
-                    productName: { $first: '$productDetails.title' }, // Include product name
+                    productName: { $first: '$productDetails.title' },
                     totalQuantity: { $sum: '$orderDetails.products.quantity' },
-                    productCategory: { $first: '$productDetails.category' }, // Include category if needed
+                    productCategory: { $first: '$productDetails.category' },
                 },
             },
             {
-                // Project the final result
                 $project: {
                     _id: 0,
                     productId: '$_id',
                     name: '$productName',
                     category: '$productCategory',
                     revenue: '$totalRevenue',
-                    quantity: '$totalQuantity'
+                    quantity: '$totalQuantity',
                 },
             },
-            {
-                // Sort by revenue in descending order
-                $sort: { revenue: -1 },
-            },
+            { $sort: { revenue: -1 } },
         ]);
 
         return res.status(200).json({
