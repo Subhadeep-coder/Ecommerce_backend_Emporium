@@ -1065,3 +1065,108 @@ exports.orderAnalytics = async (req, res) => {
         return res.status(500).json({ message: 'Internal Server Error', error: error.message });
     }
 }
+
+exports.salesGraph = async (req, res) => {
+    try {
+        const userId = req.user.id;
+
+        const result = await Payment.aggregate([
+            // Match delivered payments
+            { $match: { status: "Completed" } },
+
+            // Lookup orders associated with the payment
+            {
+                $lookup: {
+                    from: "orders",
+                    localField: "orderId",
+                    foreignField: "_id",
+                    as: "orderDetails",
+                },
+            },
+            { $unwind: "$orderDetails" },
+
+            // Unwind products in the order
+            { $unwind: "$orderDetails.products" },
+
+            // Lookup product details
+            {
+                $lookup: {
+                    from: "products",
+                    localField: "orderDetails.products.productId",
+                    foreignField: "_id",
+                    as: "productDetails",
+                },
+            },
+            { $unwind: "$productDetails" },
+
+            // Filter by userId (only include products created by the given user)
+            { $match: { "productDetails.user": new mongoose.Types.ObjectId(userId) } },
+
+            // Calculate total sales (price * quantity) and group by category
+            {
+                $group: {
+                    _id: { category: "$productDetails.category", month: { $month: "$createdAt" } },
+                    totalRevenue: {
+                        $sum: {
+                            $multiply: [
+                                "$productDetails.price",
+                                "$orderDetails.products.quantity",
+                            ],
+                        },
+                    },
+                },
+            },
+
+            // Create an array for each category with months as indexes and revenue as values
+            {
+                $group: {
+                    _id: "$_id.category",
+                    monthlyRevenue: {
+                        $push: {
+                            month: { $subtract: ["$_id.month", 1] },
+                            revenue: "$totalRevenue",
+                        },
+                    },
+                },
+            },
+
+            // Format data to have all months (0-11) filled with default 0 values
+            {
+                $project: {
+                    label: "$_id",
+                    data: {
+                        $map: {
+                            input: { $range: [0, 12] },
+                            as: "month",
+                            in: {
+                                $let: {
+                                    vars: {
+                                        match: {
+                                            $arrayElemAt: [
+                                                {
+                                                    $filter: {
+                                                        input: "$monthlyRevenue",
+                                                        as: "revenue",
+                                                        cond: { $eq: ["$$revenue.month", "$$month"] },
+                                                    },
+                                                },
+                                                0,
+                                            ],
+                                        },
+                                    },
+                                    in: { $ifNull: ["$$match.revenue", 0] },
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        ]);
+
+        return res.status(200).json({ graph: result });
+
+    } catch (error) {
+        console.error("Error fetching recent sales:", error);
+        return res.status(500).json({ message: "Internal Server Error", error: error.message });
+    }
+};

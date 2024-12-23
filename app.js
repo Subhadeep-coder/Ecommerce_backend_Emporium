@@ -18,6 +18,8 @@ const googleAuthRoutes = require("./src/routes/google-auth-Routes");
 const messageRoutes = require("./src/routes/messageRoutes");
 const addressRoutes = require("./src/routes/addressRoutes");
 const deliveryAgentRoutes = require("./src/routes/deliveryAgentRoutes");
+const bannerRoutes = require('./src/routes/bannerRoutes');
+const adsRoutes = require('./src/routes/adsRoutes');
 const MongoStore = require('connect-mongo');
 
 // Import database connection and Socket.IO setup
@@ -81,6 +83,8 @@ app.use("/messages", messageRoutes);  // Fixed the typo from "meesages"
 app.use("/cash", cashRouter);
 app.use("/address", addressRoutes);
 app.use("/delivery-agent", deliveryAgentRoutes);
+app.use("/banner", bannerRoutes);
+app.use('/ads', adsRoutes);
 
 // Server listens on the specified port
 const PORT = process.env.PORT || 3000;

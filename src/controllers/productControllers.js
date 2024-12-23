@@ -23,8 +23,8 @@ const createProduct = catchAsyncErrors(async (req, res, next) => {
   const { title, description, price, category, inventory } = req.body;
 
   // Check if image files are between 2 and 5
-  if (!req.files || req.files.length < 2 || req.files.length > 5) {
-    return next(new ErrorHandler("You must upload between 2 and 5 images.", 400));
+  if (!req.files || req.files.length < 1 || req.files.length > 5) {
+    return next(new ErrorHandler("You must upload between 1 and 5 images.", 400));
   }
 
   // Convert images for saving in the database

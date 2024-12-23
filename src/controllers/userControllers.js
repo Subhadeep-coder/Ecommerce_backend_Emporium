@@ -8,6 +8,7 @@ const { generateAccessToken, generateRefreshToken, generateAccessToken2 } = requ
 const sendMail = require("../utils/nodemailer")
 const crypto = require("crypto")
 const jwt = require('jsonwebtoken');
+const mongoose = require('mongoose');
 // Import the token generation function
 exports.test = (req, res, next) => {
     res.json({ message: 'hello user' });
@@ -766,3 +767,32 @@ exports.searchStore = catchAsyncErrors(async (req, res, next) => {
     }
 });
 
+exports.getStoreById = catchAsyncErrors(async (req, res, next) => {
+    const { storeId } = req.query;
+
+    if (!storeId) {
+        return res.status(400).json({ message: "Store name is required for it." });
+    }
+
+    try {
+        const stores = await User.find(
+            { 
+              isSeller: true, 
+              _id: new mongoose.Types.ObjectId(storeId)
+            }, 
+            'storeName storeImage'
+        );
+
+        if (stores.length === 0) {
+            return res.status(404).json({ message: "No stores found matching your search." });
+        }
+
+        res.status(200).json({
+            success: true,
+            data: stores
+        });
+    } catch (error) {
+        console.error("Error in searching stores:", error);
+        next(new ErrorHandler("Something went wrong while searching for stores.", 500));
+    }
+});
