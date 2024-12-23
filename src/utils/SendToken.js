@@ -3,13 +3,13 @@ const jwt = require("jsonwebtoken");
 
 const generateAccessToken = (user) => {
     return jwt.sign({ id: user._id, isAdmin: user.isAdmin }, process.env.JWT_SECRET, {
-        expiresIn: '1d' // Token expiration time
+        expiresIn: '7d' // Token expiration time
     });
     // return jwt.sign(user, process.env.JWT_SECRET, { expiresIn: '1h' }); // Access token expiry set to 1 hour
 };
 
 const generateAccessToken2 = (user) => {
-    return jwt.sign(user, process.env.JWT_SECRET, { expiresIn: '1d' }); // Access token expiry set to 1 hour
+    return jwt.sign(user, process.env.JWT_SECRET, { expiresIn: '7d' }); // Access token expiry set to 1 hour
 }
 
 const generateRefreshToken = (user) => {

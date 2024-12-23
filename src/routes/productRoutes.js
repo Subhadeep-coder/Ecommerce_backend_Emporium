@@ -22,7 +22,7 @@ const upload = require("../config/multer-config");
 
 // Product routes (only sellers can access)
 router.post('/create', upload.array("images"), isLoggedIn, isSeller, createProduct);
-router.post('/update/:id', isLoggedIn, isSeller, updateProduct);
+router.post('/update/:id',  upload.array("images"),isLoggedIn, isSeller, updateProduct);
 router.post('/delete/:id', isLoggedIn, isSeller, deleteProduct);
 router.post('/:id', isLoggedIn, getSingleProduct);
 
