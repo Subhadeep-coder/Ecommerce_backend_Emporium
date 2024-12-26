@@ -2,10 +2,7 @@ const mongoose = require("mongoose");
 const dbgr = require("debug")("development:mongoose");
 
 mongoose
-  .connect(process.env.MONGODB_URI, {
-    tls: true, // Ensures TLS is enabled
-    tlsAllowInvalidCertificates: false, // Enforces proper SSL validation
-  })
+  .connect(process.env.MONGODB_URI)
   .then(() => {
     console.log("Connected to the database");
   })
