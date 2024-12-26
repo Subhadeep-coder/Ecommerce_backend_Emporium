@@ -2,7 +2,11 @@ const mongoose = require("mongoose");
 const dbgr = require("debug")("development:mongoose");
 
 mongoose
-  .connect(process.env.MONGODB_URI)
+  .connect(process.env.MONGODB_URI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+    tls: true, // Ensure TLS is enabled
+  })
   .then(() => {
     console.log("Connected to the database");
   })
