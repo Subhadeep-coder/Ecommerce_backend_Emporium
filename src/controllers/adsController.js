@@ -20,6 +20,7 @@ exports.getAds = catchAsyncErrors(async (req, res, next) => {
       
             if (store.length > 0) {
               return {
+                titleText: ad.titleText,
                 storeName: ad.storeName,
                 image: ad.image.toString('base64'),
                 contentType: ad.contentType,
@@ -27,6 +28,7 @@ exports.getAds = catchAsyncErrors(async (req, res, next) => {
               };
             } else {
               return {
+                titleText: ad.titleText,
                 storeName: ad.storeName,
                 image: ad.image.toString('base64'),
                 contentType: ad.contentType,
@@ -55,11 +57,11 @@ exports.uploadAdImage = upload.single('image');
 
 exports.addAd = catchAsyncErrors(async (req, res, next) => {
   try {
-    const { storeId, storeName } = req.body;
-    if (!req.file || !storeId || !storeName) {
+    const { storeId, storeName, titleText } = req.body;
+    if (!req.file || !storeId || !storeName || !titleText) {
       return res
         .status(400)
-        .json({ error: 'Store ID, Store Name, and Image are required' });
+        .json({ error: 'Store ID, Store Name, a Title and Image are required' });
     }
 
     const storeIdObjectId = new mongoose.Types.ObjectId(storeId);
@@ -72,6 +74,7 @@ exports.addAd = catchAsyncErrors(async (req, res, next) => {
     }
 
     adsDoc.ads.push({
+      titleText: titleText,
       storeId: storeIdObjectId,
       storeName,
       image: buffer,
