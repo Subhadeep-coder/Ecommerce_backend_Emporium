@@ -25,6 +25,7 @@ const MongoStore = require('connect-mongo');
 // Import database connection and Socket.IO setup
 const db = require("./src/config/mongoose-connection");
 const { setupSocket } = require('./src/utils/socket-io');
+const { getServerIP } = require('./src/utils/getIp');
 
 // Connect to MongoDB
 const app = express();
@@ -85,7 +86,12 @@ app.use("/address", addressRoutes);
 app.use("/delivery-agent", deliveryAgentRoutes);
 app.use("/banner", bannerRoutes);
 app.use('/ads', adsRoutes);
-
+app.get('/test', (req, res) => {
+    console.log("IP: ", getServerIP());
+    return res.status(200).json({
+        message: "Testing.."
+    })
+});
 // Server listens on the specified port
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
