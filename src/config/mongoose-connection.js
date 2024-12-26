@@ -3,9 +3,8 @@ const dbgr = require("debug")("development:mongoose");
 
 mongoose
   .connect(process.env.MONGODB_URI, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-    tls: true, // Ensure TLS is enabled
+    tls: true, // Ensures TLS is enabled
+    tlsAllowInvalidCertificates: false, // Enforces proper SSL validation
   })
   .then(() => {
     console.log("Connected to the database");
