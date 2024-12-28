@@ -504,9 +504,9 @@ const unshareProduct = catchAsyncErrors(async (req, res, next) => {
 
 
 const getProductsByStore = catchAsyncErrors(async (req, res, next) => {
-  const { storeName, page, limit } = req.query;
+  const { storeName, page = 1, limit = 10 } = req.query; // Set default values for page and limit
+  
   console.log(storeName);
-
 
   // Ensure storeName is provided
   if (!storeName) {
@@ -520,18 +520,50 @@ const getProductsByStore = catchAsyncErrors(async (req, res, next) => {
   if (!seller) {
     return next(new ErrorHandler("Seller not found with the given store name", 404));
   }
-  const skip = (page - 1) * limit;
-  // Fetch products created by the seller
-  const products = await productModel.find({ user: seller._id }).skip(skip).limit(limit);
+
+  // Parse page and limit as integers
+  const pageNumber = parseInt(page, 10);
+  const limitNumber = parseInt(limit, 10);
+  const skip = (pageNumber - 1) * limitNumber;
+
+  // Fetch total count of products for pagination metadata
+  const totalProducts = await productModel.countDocuments({ user: seller._id });
+
+  // Fetch products created by the seller with pagination
+  const products = await productModel
+    .find({ user: seller._id })
+    .skip(skip)
+    .limit(limitNumber);
 
   // If no products are found, return an empty array
   if (!products.length) {
-    return res.status(200).json({ message: "No products found for this store", products: [] });
+    return res.status(200).json({
+      success: true,
+      message: "No products found for this store",
+      products: [],
+      pagination: {
+        currentPage: pageNumber,
+        totalPages: Math.ceil(totalProducts / limitNumber),
+        totalItems: totalProducts,
+        itemsPerPage: limitNumber,
+      },
+    });
   }
 
-  // Return the list of products
-  res.status(200).json({ message: "Products fetched successfully", products });
+  // Return the list of products with pagination metadata
+  res.status(200).json({
+    success: true,
+    message: "Products fetched successfully",
+    products,
+    pagination: {
+      currentPage: pageNumber,
+      totalPages: Math.ceil(totalProducts / limitNumber),
+      totalItems: totalProducts,
+      itemsPerPage: limitNumber,
+    },
+  });
 });
+
 
 module.exports = {
   test,

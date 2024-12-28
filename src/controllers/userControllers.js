@@ -723,13 +723,29 @@ exports.getActivityFeed = catchAsyncErrors(async (req, res, next) => {
 // Controller to get all stores
 exports.getAllStores = async (req, res) => {
     try {
-        // Find all users who are sellers and return storeName and storeImage fields
-        const stores = await User.find({ isSeller: true }, 'storeName storeImage');
+        // Extract page and limit from query parameters, set defaults if not provided
+        const page = parseInt(req.query.page, 10) || 1; // Default to page 1
+        const limit = parseInt(req.query.limit, 10) || 10; // Default to 10 items per page
+        const skip = (page - 1) * limit;
 
-        // Send the response with the store names and images
+        // Fetch paginated stores with only storeName and storeImage fields
+        const stores = await User.find({ isSeller: true }, 'storeName storeImage')
+            .skip(skip)
+            .limit(limit);
+
+        // Get total count of stores (for pagination metadata)
+        const totalStores = await User.countDocuments({ isSeller: true });
+
+        // Send the response with the store names, images, and pagination metadata
         res.status(200).json({
             success: true,
             data: stores,
+            pagination: {
+                currentPage: page,
+                totalPages: Math.ceil(totalStores / limit),
+                totalItems: totalStores,
+                itemsPerPage: limit,
+            },
         });
     } catch (error) {
         console.error('Error fetching stores:', error); // Log the error for debugging
