@@ -24,6 +24,10 @@ const productSchema = new mongoose.Schema({
     required: true, // Making category a required field
     trim: true
   },
+  subcategory: {
+    type: String,
+    trim: true
+  },
   inventory: {
     type: Number,
     required: true,
@@ -85,6 +89,12 @@ const productValidation = Joi.object({
     .messages({
       'string.empty': 'Category is required',
       'any.required': 'Category is a required field',
+    }),
+
+  subcategory: Joi.string()
+    .trim()
+    .messages({
+      'any.required': 'SubCategory is a required field',
     }),
 
   inventory: Joi.number()

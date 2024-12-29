@@ -20,7 +20,7 @@ const createProduct = catchAsyncErrors(async (req, res, next) => {
     return next(new ErrorHandler("Store name is required for sellers.", 400));
   }
 
-  const { title, description, price, category, inventory } = req.body;
+  const { title, description, price, category, inventory, subcategory } = req.body;
 
   // Check if image files are between 2 and 5
   if (!req.files || req.files.length < 1 || req.files.length > 5) {
@@ -39,6 +39,7 @@ const createProduct = catchAsyncErrors(async (req, res, next) => {
     description,
     price,
     category,
+    subcategory,
     inventory,
     user: req.user.id,
   });
@@ -52,6 +53,7 @@ const createProduct = catchAsyncErrors(async (req, res, next) => {
     description,
     price,
     category,
+    subcategory,
     inventory,
     user: user._id,
   });
@@ -84,7 +86,7 @@ const createProduct = catchAsyncErrors(async (req, res, next) => {
 
 
 const getAllProducts = catchAsyncErrors(async (req, res, next) => {
-  const { search, category, minPrice, maxPrice, sortBy, page = 1, limit = 10 } = req.query;
+  const { search, category,subcategory, minPrice, maxPrice, sortBy, page = 1, limit = 10 } = req.query;
   let query = {};
 
   // Search functionality
@@ -98,6 +100,11 @@ const getAllProducts = catchAsyncErrors(async (req, res, next) => {
   // Category filter
   if (category) {
     query.category = category;
+  }
+
+  // SubCategory filter
+  if (subcategory) {
+    query.subcategory = subcategory;
   }
 
   // Price range filter
@@ -148,12 +155,13 @@ const updateProduct = catchAsyncErrors(async (req, res, next) => {
     return next(new ErrorHandler("Unauthorized or product not found", 403));
   }
 
-  const { title, images, description, price, category, inventory } = req.body;
+  const { title, images, description, price, category, subcategory, inventory } = req.body;
   if (title) product.title = title;
   if (images) product.images = images;
   if (description) product.description = description;
   if (price) product.price = price;
   if (category) product.category = category;
+  if (subcategory) product.subcategory = subcategory;
   if (inventory) product.inventory = inventory;
 
   await product.save();
@@ -505,7 +513,7 @@ const unshareProduct = catchAsyncErrors(async (req, res, next) => {
 
 const getProductsByStore = catchAsyncErrors(async (req, res, next) => {
   const { storeName, page = 1, limit = 10 } = req.query; // Set default values for page and limit
-  
+
   console.log(storeName);
 
   // Ensure storeName is provided
