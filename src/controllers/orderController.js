@@ -189,6 +189,7 @@ exports.getOrdersByStore = catchAsyncErrors(async (req, res, next) => {
             productId: "$products.productId",
             quantity: "$products.quantity",
             productRevenue: "$productRevenue",
+            name: "$productData.title",
           },
         },
         totalRevenue: { $sum: "$productRevenue" }, // Sum up revenue for products in the order
